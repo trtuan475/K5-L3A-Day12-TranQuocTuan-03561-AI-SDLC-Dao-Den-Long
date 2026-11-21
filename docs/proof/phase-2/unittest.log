@@ -50,6 +50,6 @@ test_std_jump (test_sim.TestStdMovement.test_std_jump) ... ok
 test_std_speed_and_yaw (test_sim.TestStdMovement.test_std_speed_and_yaw) ... ok
 
 ----------------------------------------------------------------------
-Ran 50 tests in 2.242s
+Ran 50 tests in 2.210s
 
 OK
