@@ -42,7 +42,7 @@ class TestStdMovement(unittest.TestCase):  # P2-1
             self.assertEqual(len(s["lanterns"]), count)
             self.assertEqual(s["motes_active"], 20)
             self.assertEqual(s["night"], n)
-            self.assertEqual(s["time_left_s"], {1: 300, 2: 330, 3: 360}[n])
+            self.assertEqual(s["time_left_s"], {1: 240, 2: 270, 3: 300}[n])  # Phase 3: durations changed
         self.assertEqual(Game(seed=1).snapshot()["player"]["pos"], [0.0, 0.0, 0.0])
 
     def test_std_speed_and_yaw(self):
@@ -103,12 +103,12 @@ class TestMotesLanterns(unittest.TestCase):
         g = empty(player={"carried": 6}, lanterns=[{"id": "L1", "pos": [0, 0, 1.5]}, {"id": "L2", "pos": [1.5, 0, 0]}])
         ev = run(g, 2, tap(0, "interact"))  # tie at 1.5 m -> L1 (smaller id)
         self.assertEqual(ev[0][2], {"lantern_id": "L1", "amount": 6, "deposited": 6})
-        self.assertEqual(g.score, 60)
+        self.assertEqual(g.score, 30)  # Phase 3: +5 per deposited mote
         g.player["carried"] = 9
         ev = run(g, 2, tap(g.tick, "interact"))
         self.assertEqual(names(ev), ["deposit", "lantern_lit"])
         self.assertEqual(g.player["carried"], 5)
-        self.assertEqual(g.score, 100 + 100)
+        self.assertEqual(g.score, 30 + 20 + 100)
 
     def test_interact_radius(self):
         g = empty(player={"carried": 5}, lanterns=[{"id": "L1", "pos": [0, 0, 2.01]}])
@@ -234,24 +234,138 @@ class TestHitFall(unittest.TestCase):
         self.assertEqual(ev[-1][2], {"result": "lost", "reason": "no_flames"})
 
 
-class TestEnd(unittest.TestCase):  # P2-9
-    def test_win_score(self):
+class TestEnd(unittest.TestCase):  # P2-9, rewritten for Phase 3 (early win replaced by dawn win, ADR 0001)
+    def test_no_early_win(self):
         lit = [{"id": f"L{i}", "lit": True} for i in (2, 3, 4, 5)]
-        g = empty(player={"carried": 10}, lanterns=[{"id": "L1", "pos": [0, 0, 1]}] + lit, time_left_s=100)
+        g = empty(player={"carried": 10}, lanterns=[{"id": "L1", "pos": [0, 0, 1]}] + lit)
         ev = run(g, 3, tap(0, "interact"))
-        self.assertEqual(names(ev), ["deposit", "lantern_lit", "game_over"])
-        self.assertEqual(g.score, 100 + 100 + 99 * 2 + 50 * 3)
+        self.assertNotIn("game_over", names(ev))
+        self.assertEqual(ev[1][2], {"lantern_id": "L1", "relight": False})
 
-    def test_win_on_last_tick(self):
-        lit = [{"id": f"L{i}", "lit": True} for i in (2, 3, 4, 5)]
-        g = empty(player={"carried": 10}, lanterns=[{"id": "L1", "pos": [0, 0, 1]}] + lit, time_left_s=1 / 60)
-        ev = run(g, 3, tap(0, "interact"))
-        self.assertEqual(ev[-1][2], {"result": "won", "reason": "all_lit"})
+    def test_dawn_win_score(self):  # P3-7, P3-9
+        lit = [{"id": "L1", "lit": True, "fuel": 50.5}, {"id": "L2", "lit": True}, {"id": "L3", "lit": True}]
+        g = empty(lanterns=lit, time_left_s=1)
+        ev = run(g, 100)
+        self.assertEqual(ev[-1], (60, "game_over", {"result": "won", "reason": "dawn_survived"}))
+        # fuel after 60 ticks: 49.5, 99, 99 -> (50+49) + (50+99) + (50+99) + 3 flames * 50
+        self.assertEqual(g.score, 99 + 149 + 149 + 150)
+
+    def test_dawn_lose_below_threshold(self):
+        g = empty(lanterns=[{"id": "L1", "lit": True}, {"id": "L2", "lit": True}], time_left_s=1)
+        ev = run(g, 100)
+        self.assertEqual(ev[-1][2], {"result": "lost", "reason": "dawn"})
+        self.assertEqual(g.score, 0)
+
+    def test_dawn_no_flames_first(self):
+        lit = [{"id": f"L{i}", "lit": True} for i in (1, 2, 3)]
+        g = empty(player={"flames": 1}, lanterns=lit, shades=[{"id": "A", "pos": [0.5, 0, 0]}], time_left_s=1 / 60)
+        ev = run(g, 2)
+        self.assertEqual(ev[-1][2], {"result": "lost", "reason": "no_flames"})
+
+    def test_thresholds(self):
+        for n, need in ((1, 3), (2, 4), (3, 5)):
+            lit = [{"id": f"L{i}", "lit": True} for i in range(1, need + 1)]
+            g = empty(night=n, lanterns=lit, time_left_s=1 / 60, player={"pos": Game(seed=1, night=n).map["start"]})
+            self.assertEqual(run(g, 1)[-1][2]["result"], "won")
+            g = empty(night=n, lanterns=lit[:-1], time_left_s=1 / 60, player={"pos": Game(seed=1, night=n).map["start"]})
+            self.assertEqual(run(g, 1)[-1][2]["result"], "lost")
 
     def test_dawn(self):
         g = empty(time_left_s=1)
         ev = run(g, 100)
         self.assertEqual(ev[-1], (60, "game_over", {"result": "lost", "reason": "dawn"}))
+
+
+class TestFuel(unittest.TestCase):  # Phase 3
+    def test_fuel_decay_and_out(self):  # P3-1
+        g = empty(lanterns=[{"id": "L1", "lit": True, "fuel": 1}])
+        ev = run(g, 59)
+        self.assertEqual(g.snapshot()["lanterns"][0]["fuel"], 0.0 + round(1 / 60, 1))
+        ev = run(g, 1)
+        self.assertEqual(ev, [(60, "lantern_out", {"lantern_id": "L1"})])
+        L = g.snapshot()["lanterns"][0]
+        self.assertEqual((L["lit"], L["fuel"], L["deposited"], L["ever_lit"]), (False, 0.0, 0, True))
+
+    def test_refuel(self):  # P3-2
+        g = empty(player={"carried": 10}, lanterns=[{"id": "L1", "pos": [0, 0, 1], "lit": True, "fuel": 55}])
+        ev = run(g, 1, tap(0, "interact"))
+        self.assertEqual(ev[0][1:], ("refuel", {"lantern_id": "L1", "amount": 5, "fuel": 100.0}))  # ceil(45/10)=5
+        self.assertEqual((g.player["carried"], g.score), (5, 25))
+        run(g, 1, {g.tick: {"interact": False}})
+        ev = run(g, 2, tap(g.tick, "interact"))  # 99.98 < 100 -> receivable again, needs ceil(0.02/10) = 1
+        self.assertEqual(ev[0][2], {"lantern_id": "L1", "amount": 1, "fuel": 100.0})
+
+    def test_refuel_full_not_selected(self):
+        g = empty(player={"carried": 4}, lanterns=[{"id": "L1", "pos": [0, 0, 1], "lit": True},
+                                                   {"id": "L2", "pos": [0, 0, 1.5]}])
+        g.lanterns[0]["fuel"] = g.FUEL_MAX + 1  # keep it full through step 2 of this tick
+        ev = run(g, 1, tap(0, "interact"))
+        self.assertEqual(ev[0][2]["lantern_id"], "L2")
+
+    def test_relight(self):  # P3-3
+        g = empty(player={"carried": 7}, lanterns=[{"id": "L1", "pos": [0, 0, 1], "ever_lit": True}])
+        ev = run(g, 1, tap(0, "interact"))
+        self.assertEqual(names(ev), ["deposit", "lantern_lit"])
+        self.assertEqual(ev[1][2], {"lantern_id": "L1", "relight": True})
+        self.assertEqual(g.player["carried"], 2)
+        self.assertEqual(g.score, 25 + 40)
+        L = g.snapshot()["lanterns"][0]
+        self.assertEqual((L["relit_count"], L["fuel"]), (1, 100.0))
+
+    def test_capacity(self):  # P3-8
+        g = empty(player={"successful_lights": 4})
+        self.assertEqual(g.snapshot()["player"]["capacity"], 18)
+        g = empty(player={"successful_lights": 9})
+        self.assertEqual(g.capacity, 20)
+        g = empty(player={"carried": 10}, lanterns=[{"id": "L1", "pos": [0, 0, 1]}], motes=[[0, 0, 0.5]] * 3)
+        run(g, 1, tap(0, "interact"))  # picks 0 (full at 10), then lights L1 -> capacity 12
+        run(g, 1)
+        self.assertEqual((g.capacity, g.player["carried"]), (12, 3))
+
+    def test_safe_threshold(self):  # P3-4
+        for fuel, blocked in ((31.0, True), (29.9, False)):
+            g = empty(player={"pos": [0, 0, 25]}, lanterns=[{"id": "L1", "lit": True, "fuel": fuel}],
+                      shades=[{"id": "A", "pos": [0, 0, 18.5], "state": "chase"}])
+            run(g, 30)
+            inside = math.hypot(g.shades[0]["pos"][0], g.shades[0]["pos"][2] - 25) < 6 - 1e-6
+            self.assertEqual(inside, not blocked)
+        g = empty(lanterns=[{"id": "L1", "lit": True, "fuel": 30}])
+        self.assertTrue(g._safe(g.lanterns[0]))  # exactly 30 keeps the safe zone
+
+    def test_drain(self):  # P3-5
+        g = empty(player={"pos": [0, 0, -20]}, lanterns=[{"id": "L1", "lit": True, "fuel": 20}],
+                  shades=[{"id": "A", "pos": [0, 0, 23.05]}, {"id": "B", "pos": [0.5, 0, 26.5]}])
+        ev = run(g, 2)
+        self.assertEqual([s["state"] for s in g.snapshot()["shades"]], ["drain", "drain"])
+        f0 = g.lanterns[0]["fuel"]
+        ev = run(g, 60)
+        self.assertEqual(f0 - g.lanterns[0]["fuel"], 60 * (1 + 5 + 5))  # decay + 2 drainers
+        fd = [e for e in ev if e[1] == "fuel_drain"]
+        self.assertEqual([e[2]["shade_id"] for e in fd], ["A", "B"])
+        run(g, 200)
+        self.assertFalse(g.lanterns[0]["lit"])
+        self.assertEqual([s["state"] for s in g.snapshot()["shades"]], ["wander", "wander"])
+
+    def test_drain_breaks_to_chase(self):
+        g = empty(player={"pos": [0, 0, 18]}, lanterns=[{"id": "L1", "lit": True, "fuel": 20}],
+                  shades=[{"id": "A", "pos": [0, 0, 23.5], "state": "drain", "target_lantern_id": "L1"}])
+        run(g, 1)
+        self.assertEqual(g.snapshot()["shades"][0]["state"], "chase")  # Mây within 6 m
+
+    def test_refuel_evicts_and_stops_drain(self):  # P3-6
+        g = empty(player={"pos": [0, 0, 24], "carried": 5}, lanterns=[{"id": "L1", "lit": True, "fuel": 20}],
+                  shades=[{"id": "A", "pos": [1.5, 0, 25], "state": "drain", "target_lantern_id": "L1"}])
+        g.shades[0]["state"] = "drain"
+        ev = run(g, 30, tap(0, "interact"))
+        self.assertNotIn("player_hit", names(ev))
+        self.assertGreaterEqual(math.hypot(g.shades[0]["pos"][0], g.shades[0]["pos"][2] - 25), 6 - 1e-6)
+        self.assertNotEqual(g.snapshot()["shades"][0]["state"], "drain")
+
+    def test_pulse_drain_score(self):  # P3-9
+        g = empty(player={"pos": [0, 0, 20], "carried": 3}, lanterns=[{"id": "L1", "lit": True, "fuel": 20}],
+                  shades=[{"id": "A", "pos": [0, 0, 23], "state": "drain", "target_lantern_id": "L1"}])
+        run(g, 1, tap(0, "pulse"))
+        self.assertEqual(g.score, 15)
 
 
 class TestNight2(unittest.TestCase):  # P2-10
@@ -378,7 +492,7 @@ class TestPause(unittest.TestCase):  # P2-14
         self.assertEqual([(e[0], e[1]) for e in ev if e[1] in ("paused", "resumed")], [(11, "paused"), (71, "resumed")])
         self.assertEqual(g.tick, 100)
         self.assertEqual(g.sim_tick, 40)
-        self.assertAlmostEqual(g.time_left_s, 300 - 40 / 60)
+        self.assertAlmostEqual(g.time_left_s, 240 - 40 / 60)  # Phase 3: Night 1 is 240 s
         g = Game(seed=1)
         run(g, 30, tap(10, "pause"))
         self.assertEqual(g.snapshot()["state"], "paused")

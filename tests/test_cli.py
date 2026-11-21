@@ -65,6 +65,8 @@ class TestCLI(unittest.TestCase):
             for k in ("motes", "drifters", "charms", "shades", "lanterns"):
                 self.assertIsInstance(s[k], list)
             self.assertEqual(set(s["motes"][0]), {"id", "pos", "kind", "ttl_s"})
+            self.assertIn("capacity", s["player"])  # v1.2
+            self.assertEqual({"fuel", "ever_lit", "relit_count"} - set(s["lanterns"][0]), set())
         p, _ = headless("--seed", "1", "--night", "4", "--ticks", "5")
         self.assertEqual(p.returncode, 2)
 
@@ -74,8 +76,8 @@ class TestCLI(unittest.TestCase):
                             "--inputs", os.path.join(SCN, "win_inputs.json"))
         self.assertEqual(p.returncode, 0, p.stderr)
         ev = [l for l in lines if l["type"] == "event"]
-        self.assertEqual([e["name"] for e in ev].count("lantern_lit"), 5)
-        self.assertEqual(ev[-1]["data"], {"result": "won", "reason": "all_lit"})
+        self.assertEqual([e["name"] for e in ev].count("lantern_lit"), 1)
+        self.assertEqual(ev[-1]["data"], {"result": "won", "reason": "dawn_survived"})  # Phase 3: dawn win
         self.assertEqual(lines[-1]["state"], "won")
         self.assertEqual(lines[-2]["type"], "snapshot")
         self.assertEqual(lines[-2]["tick"], lines[-1]["ticks"])

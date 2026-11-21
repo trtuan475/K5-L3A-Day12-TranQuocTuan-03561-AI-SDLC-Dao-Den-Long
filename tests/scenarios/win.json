@@ -1,11 +1,9 @@
 {
-  "_comment": "Phase 2: lantern_cost 10. Player carries 10, each lantern already has 8, 5 interacts win at tick 9.",
-  "player": { "pos": [0, 0, 0], "carried": 10, "flames": 3 },
+  "_comment": "Phase 3 (dawn win): L2, L3 already lit; one interact lights L1 (needs 2) -> 3/5 lit at dawn (3 s) -> won dawn_survived. A just-lit lantern is a refuel target (fuel < 100), so only one light per stand-still spot.",
+  "player": { "pos": [0, 0, 0], "carried": 2, "flames": 3 },
   "random_motes": false, "random_shades": false, "random_drifters": false,
-  "motes": [], "shades": [],
+  "motes": [], "shades": [], "time_left_s": 3,
   "lanterns": [
-    { "id": "L1", "pos": [0, 0, 1.5], "deposited": 8 }, { "id": "L2", "pos": [1.5, 0, 0], "deposited": 8 },
-    { "id": "L3", "pos": [0, 0, -1.5], "deposited": 8 }, { "id": "L4", "pos": [-1.5, 0, 0], "deposited": 8 },
-    { "id": "L5", "pos": [1, 0, 1], "deposited": 8 }
+    { "id": "L1", "pos": [0, 0, 1.5], "deposited": 8 }, { "id": "L2", "lit": true }, { "id": "L3", "lit": true }
   ]
 }
