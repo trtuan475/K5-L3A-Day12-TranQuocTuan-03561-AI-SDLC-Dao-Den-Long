@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.env
+*.jsonl
+!docs/proof/**/*.jsonl
+.DS_Store
