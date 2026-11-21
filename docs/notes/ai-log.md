@@ -54,4 +54,4 @@ Công cụ: Claude Code (Claude Opus 5.5) trong VS Code. Harness: [AGENTS.md](..
 - Đạt: mọi AC headless P2-1…P2-15 có test xanh; FPS khoảng 120 (yêu cầu ≥ 30); cả Đêm chạy headless dưới 1 s (giới hạn 30 s); tất định ở cả 3 Đêm.
 - Ảnh hưởng tới Phase 1: số liệu và luật điểm đổi theo chuẩn, nên các test Phase 1 bị ảnh hưởng đã được viết lại. `--night 1` vẫn chạy được mọi scenario dạng v1.0.
 - Rủi ro: các giả định B1 (xuất phát Đêm 3 ở (0,0,−30)), B4 (`spawning` 60 tick, `wander` 2 m/s) và B5 (cách đo chênh cao) có thể khác test ẩn.
-- Chưa đạt trọn: bot chưa thắng được Đêm 2/3, nên chưa có ảnh màn Bình Minh. Phần lưu cài đặt, đồng hồ đỏ và âm thanh mới được kiểm tra bằng tay.
+- Chưa đạt trọn: bot chưa thắng được Đêm 2/3, nên chưa có ảnh màn Bình Minh. Phần lưu cài đặt, đồng hồ đỏ khi ≤ 30 s, âm thanh và màn Bình Minh **chưa được kiểm chứng** (không có test tự động, chưa ai chơi tay). Cần kiểm tra tay trước Phase 4.

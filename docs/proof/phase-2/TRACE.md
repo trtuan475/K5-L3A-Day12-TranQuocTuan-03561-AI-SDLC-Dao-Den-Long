@@ -25,10 +25,10 @@ Test được nêu theo tên trong [tests/test_sim.py](../../../tests/test_sim.p
 | Bùa Gió: 7.2 m/s, lướt không hồi chiêu, 600 tick, xuất hiện lại sau 2700 tick, vị trí chuẩn | P2-13 | `test_charm`, `test_default_charm_positions` | Đạt |
 | Pause: tick tăng, sim_tick và đồng hồ đứng yên, state `paused`, sự kiện paused/resumed | P2-14 | `test_pause`; ảnh `n1_pause.png` | Đạt |
 | Contract v1.1: các trường snapshot mới, `--night 1..3`, `night_start`, tất định, cả Đêm ≤ 30 s | P2-15 | `test_v11_snapshot_fields`, `test_determinism`, REPORT (khoảng 0.4–0.7 s mỗi Đêm) | Đạt |
-| Chuỗi 3 Đêm: menu → giới thiệu (Ông Đăng) → chơi → kết quả → Đêm kế; Bình Minh; thua thì chơi lại | P2-16 | Ảnh `n*_0_intro`, `n*_4_result`; code `Flow` trong play.py | Đạt (màn Bình Minh chỉ kiểm tra bằng code và kiểm tra tay, chưa có ảnh vì bot không thắng được Đêm 3) |
-| Pause menu: Tiếp tục / Chơi lại Đêm / Cài đặt / Về menu; cài đặt âm lượng và độ nhạy được lưu | P2-16 | Ảnh `n1_pause.png`; lưu ở `~/.dao_den_long_settings.json` | Đạt (phần lưu kiểm tra tay) |
-| Âm thanh: nhạc nền + 10 hiệu ứng + đếm ngược 10 s | P2-16 | `scripts/gen_sfx.py` → `assets/sfx/*.wav`; hook sự kiện trong `Flow.update` | Đạt (kiểm tra bằng tai) |
-| HUD đầy đủ theo bố cục; đồng hồ đỏ nhấp nháy khi ≤ 30 s; nhắc "E - Nạp ánh sáng"; mũi tên chỉ đèn | P2-16 | Ảnh `n*_1_play`, `n*_2_mid` | Đạt (đồng hồ đỏ chỉ kiểm tra tay) |
+| Chuỗi 3 Đêm: menu → giới thiệu (Ông Đăng) → chơi → kết quả → Đêm kế; Bình Minh; thua thì chơi lại | P2-16 | Ảnh `n*_0_intro`, `n*_4_result`; code `Flow` trong play.py | Một phần: menu/intro/kết quả có ảnh; màn Bình Minh **chưa kiểm chứng** (bot không thắng được Đêm 3) |
+| Pause menu: Tiếp tục / Chơi lại Đêm / Cài đặt / Về menu; cài đặt âm lượng và độ nhạy được lưu | P2-16 | Ảnh `n1_pause.png`; lưu ở `~/.dao_den_long_settings.json` | Pause menu có ảnh; phần lưu cài đặt **chưa kiểm chứng** |
+| Âm thanh: nhạc nền + 10 hiệu ứng + đếm ngược 10 s | P2-16 | `scripts/gen_sfx.py` → `assets/sfx/*.wav`; hook sự kiện trong `Flow.update` | File âm thanh sinh được; việc phát âm thanh **chưa kiểm chứng** |
+| HUD đầy đủ theo bố cục; đồng hồ đỏ nhấp nháy khi ≤ 30 s; nhắc "E - Nạp ánh sáng"; mũi tên chỉ đèn | P2-16 | Ảnh `n*_1_play`, `n*_2_mid` | Đạt, riêng đồng hồ đỏ khi ≤ 30 s **chưa kiểm chứng** |
 | Bảng màu chuẩn; ánh sáng môi trường 0.15 + 0.55 × tiến độ | P2-16 | `PAL` trong play.py (hex đúng từng giá trị); `AmbientLight`; các phần cần đúng màu bỏ qua ánh sáng | Đạt |
 | ≥ 30 FPS trung bình ở 1280×720 | P2-17 | [fps.txt](fps.txt): Đêm 3 đạt 119.8 FPS, Đêm 1 đạt 119.1 FPS (Apple Silicon, vsync tắt) | Đạt |
 
