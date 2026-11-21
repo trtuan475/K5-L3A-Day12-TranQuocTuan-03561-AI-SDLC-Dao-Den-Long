@@ -34,7 +34,7 @@ step "Scenario win (AC4, AC8): \`$END\`" "[runs/win_scenario.jsonl](runs/win_sce
 
 # 3. bot plays each default night (random world), replayed through headless. PASS = full run completes with a
 #    valid end line; the outcome (won/lost) is reported as-is (the bot is simple, not a proof of difficulty).
-for NS in "1 2" "2 1" "3 1"; do
+for NS in "1 3" "2 1" "3 1"; do
   set -- $NS; N=$1; SEED=$2
   python3 scripts/record_bot.py --night $N --seed $SEED --out "$OUT/runs/bot_inputs_n${N}_s$SEED.json" > /dev/null
   python3 headless.py --seed $SEED --night $N --inputs "$OUT/runs/bot_inputs_n${N}_s$SEED.json" --ticks 21600 \
@@ -45,7 +45,7 @@ for NS in "1 2" "2 1" "3 1"; do
   step "Bot plays Night $N seed $SEED via inputs replay: $LIT lanterns lit, \`$END\`" "[runs/bot_n${N}_s$SEED.jsonl](runs/bot_n${N}_s$SEED.jsonl)" "$R"
 done
 
-# 4. idle player loses (no_flames or dawn)
+# 4. idle player loses (no_flames or dawn: no lantern is lit at dawn)
 python3 headless.py --seed 1 --night 1 --ticks 21600 --out "$OUT/runs/idle_seed1.jsonl"; RC=$?
 END=$(tail -1 "$OUT/runs/idle_seed1.jsonl")
 [[ $RC -eq 0 && "$END" == *'"state":"lost"'* ]] && R=PASS || R=FAIL
@@ -55,7 +55,7 @@ step "Idle player loses: \`$(grep game_over "$OUT/runs/idle_seed1.jsonl")\`" "[r
 TMP=$(mktemp -d)
 for N in 1 2 3; do
   for i in 1 2; do
-    python3 headless.py --seed 7 --night $N --inputs "$OUT/runs/bot_inputs_n${N}_s$( [ $N = 1 ] && echo 2 || echo 1 ).json" \
+    python3 headless.py --seed 7 --night $N --inputs "$OUT/runs/bot_inputs_n${N}_s$( [ $N = 1 ] && echo 3 || echo 1 ).json" \
       --ticks 21600 --out "$TMP/n${N}_r$i.jsonl"
   done
   if cmp -s "$TMP/n${N}_r1.jsonl" "$TMP/n${N}_r2.jsonl"; then R=PASS; else R=FAIL; fi

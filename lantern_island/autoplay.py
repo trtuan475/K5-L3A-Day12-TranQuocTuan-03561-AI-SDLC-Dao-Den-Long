@@ -91,14 +91,20 @@ class Bot:
     def frame(self, g):
         t, P = g.t, g.player
         out = {"cam_yaw_deg": 0, "interact": False, "pulse": False, "jump": False, "dash": False, "move": [0, 0]}
-        unlit = [L for L in g.lanterns if not L["lit"]]
+        unlit = [L for L in g.lanterns if not L["lit"] or L["fuel"] < 45 * 60]
         if not unlit or P["respawn"] > 0:
             return self._edges(out)
         cost = lambda q: dist_xz(P["pos"], q) + 40 * abs(_level(P["pos"][1]) - _level(q[1]))  # noqa: E731
-        target_L = min(unlit, key=lambda L: cost(L["pos"]))
-        need = int(t["lantern_cost"]) - target_L["deposited"]
+        # Phase 3: lanterns burn out -> also refuel lit lanterns that are getting low
+        low = [L for L in g.lanterns if L["lit"] and L["fuel"] < 45 * 60]
+        pool = low + [L for L in unlit if L not in low] if low else unlit
+        target_L = min(pool, key=lambda L: cost(L["pos"]) - (60 if L["lit"] else 0))
+        if target_L["lit"]:
+            need = -(-(g.FUEL_MAX - target_L["fuel"]) // g.FUEL_PER_MOTE)
+        else:
+            need = g._lantern_cost(target_L) - target_L["deposited"]
         reserve = int(t["pulse_cost"])
-        want = min(int(t["carry_capacity"]), need + reserve)
+        want = min(g.capacity, need + reserve)
         motes = [m for m in g.motes if m["born"] < g.sim_tick]
         if P["carried"] >= want or (P["carried"] >= need and not motes) or (not motes and P["carried"] > 0):
             target = target_L["pos"]

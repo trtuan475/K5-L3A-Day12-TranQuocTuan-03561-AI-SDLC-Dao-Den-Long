@@ -29,6 +29,7 @@ ap.add_argument("--demo", action="store_true")
 ap.add_argument("--shots")
 ap.add_argument("--bench", type=float, default=0)
 ap.add_argument("--out", default="fps.txt")
+ap.add_argument("--colorblind", action="store_true", help="force colour-blind palette (screenshots)")
 ARGS, _ = ap.parse_known_args()
 AUTO = ARGS.demo or ARGS.bench > 0
 
@@ -39,6 +40,15 @@ PAL = dict(sky=H("#0E1430"), fog=H("#1B2350"), grass=H("#2F5D50"), sand=H("#C9B4
            mote_core=H("#FFF6C2"), mote_halo=H("#FFE58A"), shade=H("#120A1A"), shade_rim=H("#7A3CFF"),
            shade_stun=H("#3A3450"), shirt=H("#E8E2D0"), red=H("#C8102E"), gold=H("#F2C14E"),
            drifter=H("#8FA3B8"), danger=H("#FF5A5F"), text=H("#F5F1E6"))
+
+
+def rim_color():
+    """Ticket-03 colour-blind palette: shade rim/eyes #7A3CFF -> #00B3FF, UI danger #FF5A5F -> #FFFFFF (+ warning icon)."""
+    return H("#00B3FF") if SETTINGS["colorblind"] else PAL["shade_rim"]
+
+
+def danger_color():
+    return color.white if SETTINGS["colorblind"] else PAL["danger"]
 
 
 def alpha(c, a):
@@ -60,10 +70,12 @@ SETTINGS_PATH = os.path.join(os.path.expanduser("~"), ".dao_den_long_settings.js
 
 
 def load_settings():
-    s = {"volume": 0.7, "sensitivity": 1.0}
+    s = {"volume": 0.7, "sensitivity": 1.0, "colorblind": False}
     try:
         with open(SETTINGS_PATH, encoding="utf-8") as f:
-            s.update({k: float(v) for k, v in json.load(f).items() if k in s})
+            for k, v in json.load(f).items():
+                if k in s:
+                    s[k] = bool(v) if k == "colorblind" else float(v)
     except (OSError, ValueError):
         pass
     return s
@@ -78,6 +90,8 @@ def save_settings():
 
 
 SETTINGS = load_settings()
+if ARGS.colorblind:
+    SETTINGS["colorblind"] = True
 
 app = Ursina(title="Dao Den Long", borderless=False, development_mode=False,
              size=(1280, 720) if ARGS.bench else None, vsync=not ARGS.bench)
@@ -160,7 +174,13 @@ class World:
                            enabled=False)
             safe = unlit_e(parent=base, model=Cylinder(resolution=48, radius=game.t["safe_radius"], height=0.03),
                            y=0.03, color=alpha(PAL["lamp_on"], 0.16), enabled=False)
-            self.lanterns[L["id"]] = (lamp, core, halo, safe)
+            tear = unlit_e(parent=lamp, model="quad", color=color.rgb(0.12, 0.1, 0.12), scale=(0.35, 0.5),
+                           position=(0.1, -0.1, -0.51), rotation_z=25)  # torn paper (visible when off)
+            bar = Entity(parent=base, y=4.0, billboard=True)
+            unlit_e(parent=bar, model="quad", scale=(1.6, 0.18), color=color.rgba(0, 0, 0, 0.7))
+            fill = unlit_e(parent=bar, model="quad", scale=(1.5, 0.12), origin=(-0.5, 0), x=-0.75, z=-0.01,
+                           color=PAL["lamp_on"])
+            self.lanterns[L["id"]] = (lamp, core, halo, safe, tear, bar, fill)
         self.player = Entity(parent=self.root)
         unlit_e(parent=self.player, model="cube", color=PAL["shirt"], scale=(0.7, 0.9, 0.5), y=0.55)
         unlit_e(parent=self.player, model="cube", color=PAL["red"], scale=(0.75, 0.15, 0.55), y=1.0)
@@ -188,10 +208,19 @@ class World:
         k = 0.15 + 0.55 * lit / len(g.lanterns)  # ambient intensity (Ticket-02)
         AMBIENT.color = color.rgba(k, k, k, 1)
         scene.fog_density = (30 + lit * 6, 110 + lit * 10)
+        blink_off = int(t_anim * 2) % 2 == 1  # 1 Hz slow blink
         for L in g.lanterns:
-            lamp, core, halo, safe = self.lanterns[L["id"]]
-            lamp.color = PAL["lamp_on"] if L["lit"] else PAL["lamp_off"]
-            core.enabled = halo.enabled = safe.enabled = L["lit"]
+            lamp, core, halo, safe, tear, bar, fill = self.lanterns[L["id"]]
+            fuel = L["fuel"] / 60.0
+            low = L["lit"] and fuel < g.t["low_fuel_threshold"]
+            lamp.color = PAL["lamp_on"] if L["lit"] and not (low and blink_off) else PAL["lamp_off"]
+            lamp.scale_y = 1.0 if L["lit"] else 0.8  # off lantern is squashed 20% (shape cue, not colour)
+            tear.enabled = not L["lit"]
+            core.enabled = halo.enabled = L["lit"] and not (low and blink_off)
+            safe.enabled = g._safe(L)
+            bar.enabled = L["lit"] and not (low and blink_off)
+            fill.scale_x = 1.5 * max(0.0, min(1.0, fuel / g.t["fuel_max"]))
+            fill.color = danger_color() if low else PAL["lamp_on"]
         p = g.player["pos"]
         self.player.position = Vec3(*p)
         self.player.rotation_y = math.degrees(math.atan2(*g.player["facing"]))
@@ -251,16 +280,20 @@ class World:
 
     def _new_shade(self, s):
         e = unlit_e(parent=self.root, model="sphere", scale=(1.6, 1.9, 1.6), color=PAL["shade"])
-        rim = unlit_e(parent=e, model="sphere", color=PAL["shade_rim"], scale=1.12)
+        rim = unlit_e(parent=e, model="sphere", color=rim_color(), scale=1.12)
         rim.setAttrib(CullFaceAttrib.make_reverse())  # outline: only the back faces show around the silhouette
         for x in (-0.15, 0.15):
-            unlit_e(parent=e, model="sphere", color=PAL["shade_rim"], scale=0.12, position=(x, 0.15, 0.45))
+            unlit_e(parent=e, model="sphere", color=rim_color(), scale=0.12, position=(x, 0.15, 0.45))
+        e.cb_parts = list(e.children)
         return e
 
     def _upd_shade(self, e, s, t_anim):
         p = self.g.player["pos"]
         e.position = Vec3(*s["pos"]) + Vec3(0, 0.15 * math.sin(t_anim * 3 + len(s["id"])), 0)
         e.color = PAL["shade_stun"] if s["state"] == "stunned" else PAL["shade"]
+        rc = rim_color()
+        for part in e.cb_parts:
+            part.color = rc
         k = (0.4 + 0.6 * (1 - s["spawn"] / 60)) if s["state"] == "spawning" else 1.0
         e.scale = Vec3(1.6, 1.9, 1.6) * k
         e.look_at_2d(Vec3(p[0], 0, p[2]), "y")
@@ -300,13 +333,19 @@ class HUD:
         self.right = ui_text(parent=self.root, origin=(0.5, 0.5), position=tr + Vec3(-0.03, -0.03, 0), scale=1.0)
         self.score = ui_text(parent=self.root, origin=(0.5, 0.5), position=tr + Vec3(-0.03, -0.075, 0), scale=1.0,
                              color=PAL["gold"])
-        self.cells = []
-        for i in range(10):
-            unlit_e(parent=self.root, model="quad", scale=(0.034, 0.034), color=alpha(PAL["text"], 0.25),
-                    position=(-0.2 + i * 0.044, -0.44))
+        self.slots, self.cells = [], []
+        for i in range(20):  # capacity grows 10 -> 20 (Ticket-03)
+            x = -0.418 + i * 0.044
+            self.slots.append(unlit_e(parent=self.root, model="quad", scale=(0.034, 0.034),
+                                      color=alpha(PAL["text"], 0.25), position=(x, -0.44)))
             self.cells.append(unlit_e(parent=self.root, model="quad", scale=(0.028, 0.028), color=PAL["mote_halo"],
-                                      position=(-0.2 + i * 0.044, -0.44, -0.01)))
-        ui_text(parent=self.root, text="Đom đóm", origin=(0, 0), position=(0, -0.405), scale=0.7)
+                                      position=(x, -0.44, -0.01)))
+        self.carry = ui_text(parent=self.root, origin=(0, 0), position=(0, -0.405), scale=0.7)
+        self.warn = unlit_e(parent=self.root, model=Mesh(vertices=[(-0.5, -0.43, 0), (0.5, -0.43, 0), (0, 0.43, 0)],
+                                                          triangles=[(0, 1, 2)]), color=color.white, scale=0.05,
+                            position=(-0.09, 0.46), enabled=False)
+        ui_text(parent=self.warn, text="!", origin=(0, 0), scale=18, color=color.black, z=-0.01, y=-0.08)
+        self.goal = ui_text(parent=self.root, origin=(0.5, 0.5), position=tr + Vec3(-0.03, -0.12, 0), scale=0.75)
         br = window.bottom_right
         self.icons = {}
         for i, (key, label) in enumerate((("dash", "Lướt [Shift]"), ("pulse", "Tỏa sáng [F]"))):
@@ -332,13 +371,19 @@ class HUD:
         s = int(math.ceil(g.time_left_s))
         self.timer.text = f"{s // 60:02d}:{s % 60:02d}"
         danger = g.time_left_s <= 30
-        self.timer.color = PAL["danger"] if danger else PAL["text"]
+        self.timer.color = danger_color() if danger else PAL["text"]
         self.timer.visible = not (danger and int(t_anim * 3) % 2 == 0)
+        self.warn.enabled = danger and SETTINGS["colorblind"]
         lit = sum(L["lit"] for L in g.lanterns)
         self.right.text = f"Đèn {lit}/{len(g.lanterns)}"
         self.score.text = f"Điểm {total + g.score}"
-        for i, c in enumerate(self.cells):
+        cap = g.capacity
+        for i, (slot, c) in enumerate(zip(self.slots, self.cells)):
+            slot.enabled = i < cap
             c.enabled = i < P["carried"]
+        self.carry.text = f"Đom đóm {P['carried']}/{cap}"
+        need = math.ceil(g.t["win_ratio"] * len(g.lanterns) - 1e-9)
+        self.goal.text = f"Giữ ≥ {need} đèn sáng tới bình minh"
         for key, cd, full in (("dash", P["dash_cd"], g.t["dash_cooldown_s"] * TPS),
                               ("pulse", P["pulse_cd"], g.t["pulse_cooldown_s"] * TPS)):
             cover, txt = self.icons[key]
@@ -346,7 +391,14 @@ class HUD:
             cover.scale_y = 0.075 * frac
             txt.text = f"{cd / TPS:.1f}" if frac > 0 else ""
         near = [L for L in g.lanterns if not L["lit"] and dist_xz(P["pos"], L["pos"]) <= g.t["interact_radius"]]
-        self.prompt.text = (f"E - Nạp ánh sáng ({near[0]['deposited']}/{g.t['lantern_cost']})" if near else "")
+        near = [L for L in g.lanterns if dist_xz(P["pos"], L["pos"]) <= g.t["interact_radius"]
+                and (not L["lit"] or L["fuel"] < g.FUEL_MAX)]
+        if near:
+            L = min(near, key=lambda L: dist_xz(P["pos"], L["pos"]))
+            self.prompt.text = (f"E - Châm dầu ({L['fuel'] / 60:.0f}/100)" if L["lit"]
+                                else f"E - Nạp ánh sáng ({L['deposited']}/{g._lantern_cost(L)})")
+        else:
+            self.prompt.text = ""
         bits = []
         if P["charm"] > 0:
             bits.append(f"Bùa Gió {P['charm'] / TPS:.0f}s")
@@ -496,7 +548,17 @@ class Flow:
                 self.pause_panel()
             else:
                 self.menu()
-        Button(parent=self.ui, text="Xong", scale=(0.3, 0.065), y=-0.12, color=alpha(PAL["wood"], 0.95),
+        def cb_label():
+            return f"Bảng màu dễ phân biệt: {'Bật' if SETTINGS['colorblind'] else 'Tắt'}"
+        cb = Button(parent=self.ui, text=cb_label(), scale=(0.5, 0.065), y=-0.09, color=alpha(PAL["wood"], 0.95),
+                    highlight_color=PAL["lamp_on"])
+
+        def toggle_cb():
+            SETTINGS["colorblind"] = not SETTINGS["colorblind"]
+            cb.text = cb_label()
+            save_settings()
+        cb.on_click = toggle_cb
+        Button(parent=self.ui, text="Xong", scale=(0.3, 0.065), y=-0.19, color=alpha(PAL["wood"], 0.95),
                highlight_color=PAL["lamp_on"], on_click=back_fn)
 
     def result(self):
@@ -511,11 +573,11 @@ class Flow:
                 self.ui = panel("Bình Minh", [("Về menu", self.menu)],
                                 f"Ba hòn đảo đã sáng lại. Mặt trời lên trên biển mây.\nTổng điểm: {self.total}")
                 return
-            self.ui = panel(f"Đêm {g.night} hoàn thành!", [(f"Đêm {g.night + 1}", lambda: self.intro(g.night + 1)),
+            self.ui = panel(f"Đêm {g.night}: đảo sáng tới bình minh!", [(f"Đêm {g.night + 1}", lambda: self.intro(g.night + 1)),
                                                              ("Về menu", self.menu)],
                             f"Điểm Đêm: {g.score}    Tổng: {self.total}")
         else:
-            why = "Hết Ngọn Lửa" if g.result_reason == "no_flames" else "Bình minh đã tới"
+            why = "Hết Ngọn Lửa" if g.result_reason == "no_flames" else "Bình minh tới, đảo chưa đủ sáng"
             self.ui = panel(why, [("Chơi lại Đêm", self.start_night), ("Về menu", self.menu)],
                             f"Điểm Đêm (không cộng): {g.score}    Tổng: {self.total}")
 
