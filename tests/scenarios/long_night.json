@@ -1,0 +1,6 @@
+{
+  "_comment": "Timing run: default random motes, 6 shades kept away from the idle player by a lit L1 at the origin.",
+  "lanterns": [{ "id": "L1", "pos": [0, 0, 0], "lit": true }],
+  "shades": [{ "pos": [30, 0, 0] }, { "pos": [-30, 0, 0] }, { "pos": [0, 0, 30] },
+             { "pos": [0, 0, -30] }, { "pos": [20, 0, 20] }, { "pos": [-20, 0, -20] }]
+}
