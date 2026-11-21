@@ -1,0 +1,55 @@
+test_cli_bad_inputs_exit2 (test_cli.TestCLI.test_cli_bad_inputs_exit2) ... ok
+test_cli_bad_json_exit2 (test_cli.TestCLI.test_cli_bad_json_exit2) ... ok
+test_cli_basic (test_cli.TestCLI.test_cli_basic) ... ok
+test_cli_determinism (test_cli.TestCLI.test_cli_determinism) ... ok
+test_scenario_win (test_cli.TestCLI.test_scenario_win) ... ok
+test_v11_snapshot_fields (test_cli.TestCLI.test_v11_snapshot_fields) ... ok
+test_charm (test_sim.TestCharm.test_charm) ... ok
+test_default_charm_positions (test_sim.TestCharm.test_default_charm_positions) ... ok
+test_bad_night (test_sim.TestDeterminismAndInputs.test_bad_night) ... ok
+test_bad_scenario (test_sim.TestDeterminismAndInputs.test_bad_scenario) ... ok
+test_determinism (test_sim.TestDeterminismAndInputs.test_determinism) ... ok
+test_inputs_validation (test_sim.TestDeterminismAndInputs.test_inputs_validation) ... ok
+test_chase_steal_flee_removed (test_sim.TestDrifter.test_chase_steal_flee_removed) ... ok
+test_drifter_schedule (test_sim.TestDrifter.test_drifter_schedule) ... ok
+test_idle_when_poor (test_sim.TestDrifter.test_idle_when_poor) ... ok
+test_pulse_chase_flees_without_steal (test_sim.TestDrifter.test_pulse_chase_flees_without_steal) ... ok
+test_pulse_flee_drops (test_sim.TestDrifter.test_pulse_flee_drops) ... ok
+test_dawn (test_sim.TestEnd.test_dawn) ... ok
+test_win_on_last_tick (test_sim.TestEnd.test_win_on_last_tick) ... ok
+test_win_score (test_sim.TestEnd.test_win_score) ... ok
+test_fall_and_respawn (test_sim.TestHitFall.test_fall_and_respawn) ... ok
+test_fall_last_flame_loses (test_sim.TestHitFall.test_fall_last_flame_loses) ... ok
+test_hit (test_sim.TestHitFall.test_hit) ... ok
+test_invuln_90 (test_sim.TestHitFall.test_invuln_90) ... ok
+test_deposit_multi_and_score (test_sim.TestMotesLanterns.test_deposit_multi_and_score) ... ok
+test_interact_radius (test_sim.TestMotesLanterns.test_interact_radius) ... ok
+test_mote_pick_height (test_sim.TestMotesLanterns.test_mote_pick_height) ... ok
+test_mote_schedule (test_sim.TestMotesLanterns.test_mote_schedule) ... ok
+test_bounce_pad (test_sim.TestNight2.test_bounce_pad) ... ok
+test_bridge_walk (test_sim.TestNight2.test_bridge_walk) ... ok
+test_off_bridge_falls (test_sim.TestNight2.test_off_bridge_falls) ... ok
+test_cliff_blocks (test_sim.TestNight3.test_cliff_blocks) ... ok
+test_pad_to_tier2_and_tower (test_sim.TestNight3.test_pad_to_tier2_and_tower) ... ok
+test_ramp_up (test_sim.TestNight3.test_ramp_up) ... ok
+test_wind (test_sim.TestNight3.test_wind) ... ok
+test_pause (test_sim.TestPause.test_pause) ... ok
+test_pulse_3d_radius_push_stun (test_sim.TestPulse.test_pulse_3d_radius_push_stun) ... ok
+test_pulse_coincident_pushes_plus_x (test_sim.TestPulse.test_pulse_coincident_pushes_plus_x) ... ok
+test_pulse_cost_and_cooldown (test_sim.TestPulse.test_pulse_cost_and_cooldown) ... ok
+test_safe_block (test_sim.TestSafeZone.test_safe_block) ... ok
+test_safe_evict (test_sim.TestSafeZone.test_safe_evict) ... ok
+test_chase_speed (test_sim.TestShades.test_chase_speed) ... ok
+test_detect_and_lose (test_sim.TestShades.test_detect_and_lose) ... ok
+test_spawn_max (test_sim.TestShades.test_spawn_max) ... ok
+test_spawn_schedule (test_sim.TestShades.test_spawn_schedule) ... ok
+test_air_dash_keeps_height (test_sim.TestStdMovement.test_air_dash_keeps_height) ... ok
+test_dash (test_sim.TestStdMovement.test_dash) ... ok
+test_initial_state (test_sim.TestStdMovement.test_initial_state) ... ok
+test_std_jump (test_sim.TestStdMovement.test_std_jump) ... ok
+test_std_speed_and_yaw (test_sim.TestStdMovement.test_std_speed_and_yaw) ... ok
+
+----------------------------------------------------------------------
+Ran 50 tests in 2.204s
+
+OK

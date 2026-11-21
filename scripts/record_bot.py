@@ -13,8 +13,8 @@ from lantern_island.autoplay import Bot  # noqa: E402
 from lantern_island.sim import Game  # noqa: E402
 
 
-def record(seed, max_ticks=18000):
-    g, bot, frames, last = Game(seed=seed), Bot(), [], {}
+def record(seed, night=1, max_ticks=21600):
+    g, bot, frames, last = Game(seed=seed, night=night), Bot(), [], {}
     while g.state == "playing" and g.tick < max_ticks:
         f = bot.frame(g)
         diff = {k: v for k, v in f.items() if last.get(k) != v}
@@ -28,9 +28,10 @@ def record(seed, max_ticks=18000):
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--seed", type=int, default=1)
+    ap.add_argument("--night", type=int, default=1)
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
-    data, g = record(a.seed)
+    data, g = record(a.seed, a.night)
     with open(a.out, "w") as f:
         json.dump(data, f, separators=(",", ":"))
-    print(f"seed={a.seed} bot finished: state={g.state} tick={g.tick} score={g.score} frames={len(data['frames'])}")
+    print(f"night={a.night} seed={a.seed} bot finished: state={g.state} tick={g.tick} score={g.score} frames={len(data['frames'])}")

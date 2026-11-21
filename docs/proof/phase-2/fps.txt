@@ -1,0 +1,3 @@
+night=3 window=1280x720 seconds=15.0 frames=1797 avg_fps=119.8 shades=3 motes=16
+night=3 window=1280x720 seconds=30.0 frames=3595 avg_fps=119.8 shades=6 motes=14
+night=1 window=1280x720 seconds=30.0 frames=3574 avg_fps=119.1 shades=5 motes=17

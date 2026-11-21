@@ -4,3 +4,4 @@
 - All models are procedural primitives (cube, sphere, cone, cylinder); no external assets.
 - Characters and setting (Mây, Đảo Đèn Lồng, Bóng Mực) belong to the lab brief.
 - Code written with AI assistance: Claude Code (Anthropic). See docs/notes/ai-log.md.
+- Sounds and music: generated procedurally by `scripts/gen_sfx.py` (self-made, same license as the code).

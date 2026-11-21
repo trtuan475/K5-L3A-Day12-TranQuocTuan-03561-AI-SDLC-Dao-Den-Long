@@ -21,7 +21,37 @@ Công cụ: Claude Code (Claude Opus 5.5) trong VS Code. Harness: [AGENTS.md](..
 | `camera.look_at` làm camera bị lăn | Xem ảnh chụp: cột đèn nghiêng | Đặt `camera.rotation` theo pitch/yaw |
 | Font thiếu glyph ♥ ←→ | Cảnh báo trong log + ảnh | Đổi sang ký tự ASCII |
 
-**Đánh giá Phase 1:**
+**Đánh giá Phase 1 (viết cuối Phase 1):**
 - Đạt toàn bộ AC1–AC11 (xem [TRACE](../proof/phase-1/TRACE.md)).
 - Rủi ro lớn nhất là bộ test ẩn hiểu khác các giả định A1–A11, ví dụ pulse trừ vào đom đóm đang mang, hoặc đom đóm rơi thì biến mất. Tất cả đã được ghi lại và khai báo nhất quán.
 - Cần chỉnh: bot thắng quá dễ (khoảng 50 giây), có thể cần cân bằng lại nếu ticket sau yêu cầu. Bước chụp ảnh nên chạy sớm hơn để tránh mất nhiều vòng gỡ lỗi.
+
+## Phase 2 (Ticket-02, contract v1.1)
+
+**Cách làm:** viết [phase-2-spec](phase-2-spec.md) trước, gồm bảng thay đổi so với Phase 1, giả định B1–B15 và AC P2-1…P2-17. Sau đó làm theo thứ tự ưu tiên điểm:
+1. Lõi sim viết lại theo đúng 12 bước của ticket, kèm `maps.py`.
+2. 50 test, trong đó mỗi tính năng mới có ít nhất 1 scenario.
+3. Bot điều hướng 3 Đêm.
+4. UI (menu, HUD, pause/cài đặt, âm thanh, bảng màu).
+5. `verify.sh`, ảnh chụp, đo FPS.
+
+**Token/chi phí (ước tính):** khoảng 250k token. Phần tốn nhất là viết `sim.py`/`play.py` (2 lần ghi cả file) và 3 vòng chỉnh bot. Cách đã tiết kiệm:
+- Dùng các patch nhỏ thay vì đọc lại cả file.
+- Không chạy agent phụ.
+- Test headless chạy trong 2 giây, nên vòng sửa nhanh.
+
+**Lỗi của AI và cách phát hiện:**
+| Lỗi | Phát hiện | Sửa / chỉnh harness |
+|---|---|---|
+| 3 test do AI viết lệch 1 tick (choáng, hồi lướt, recoil); lần thứ hai gặp loại lỗi này | Test đỏ; đối chiếu với mô hình tick | Sửa test, không sửa code. Thêm quy tắc "timer N tick đặt ở p thì hoạt động ở p..p+N−1" vào AGENTS.md |
+| Helper scenario quên xóa Bùa Gió mặc định, nên test cầu tre đo tốc độ 7.2 thay vì 6 | `test_bridge_walk` đỏ (52 ≠ 49) | `empty()` xóa cả `charms`. Thêm quy tắc "scenario phải xóa mọi thực thể mặc định" vào AGENTS.md |
+| Bot né Bóng Mực tự lao xuống biển | Thống kê `falls` khi chạy bot | Thêm `_safe_dir` (nhìn trước 2.5 m) |
+| `unlit_shader` + `AmbientLight` làm tối toàn bộ màu chuẩn (áo Mây ra màu xám) | Xem ảnh chụp | `setLightOff()` cho các phần cần đúng màu; chỉ địa hình chịu ánh sáng môi trường |
+| Ảnh pause chụp trước khi menu kịp render | Xem ảnh: không có menu | Chụp sau 2 frame |
+| Dùng thuộc tính `ISLAND_RADIUS` đã bị xóa khỏi sim (play.py cũ) | ImportError khi chạy | Viết lại play.py |
+
+**Đánh giá Phase 2:**
+- Đạt: mọi AC headless P2-1…P2-15 có test xanh; FPS khoảng 120 (yêu cầu ≥ 30); cả Đêm chạy headless dưới 1 s (giới hạn 30 s); tất định ở cả 3 Đêm.
+- Ảnh hưởng tới Phase 1: số liệu và luật điểm đổi theo chuẩn, nên các test Phase 1 bị ảnh hưởng đã được viết lại. `--night 1` vẫn chạy được mọi scenario dạng v1.0.
+- Rủi ro: các giả định B1 (xuất phát Đêm 3 ở (0,0,−30)), B4 (`spawning` 60 tick, `wander` 2 m/s) và B5 (cách đo chênh cao) có thể khác test ẩn.
+- Chưa đạt trọn: bot chưa thắng được Đêm 2/3, nên chưa có ảnh màn Bình Minh. Phần lưu cài đặt, đồng hồ đỏ và âm thanh mới được kiểm tra bằng tay.

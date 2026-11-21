@@ -1,0 +1,15 @@
+{"type":"event","tick":0,"name":"night_start","data":{"night":1}}
+{"type":"snapshot","tick":0,"sim_tick":0,"state":"playing","night":1,"time_left_s":300.0,"score":0,"wind":{"active":false,"dir_deg":0.0},"player":{"pos":[0.0,0.0,0.0],"vel":[0.0,0.0,0.0],"grounded":true,"flames":3,"carried":10,"invuln":false,"dash_cd_s":0.0,"pulse_cd_s":0.0,"charm_s":0.0},"lanterns":[{"id":"L1","pos":[0.0,0.0,1.5],"lit":false,"deposited":8},{"id":"L2","pos":[1.5,0.0,0.0],"lit":false,"deposited":8},{"id":"L3","pos":[0.0,0.0,-1.5],"lit":false,"deposited":8},{"id":"L4","pos":[-1.5,0.0,0.0],"lit":false,"deposited":8},{"id":"L5","pos":[1.0,0.0,1.0],"lit":false,"deposited":8}],"shades":[],"motes_active":0,"motes":[],"drifters":[],"charms":[]}
+{"type":"event","tick":1,"name":"deposit","data":{"lantern_id":"L5","amount":2,"deposited":10}}
+{"type":"event","tick":1,"name":"lantern_lit","data":{"lantern_id":"L5"}}
+{"type":"event","tick":3,"name":"deposit","data":{"lantern_id":"L1","amount":2,"deposited":10}}
+{"type":"event","tick":3,"name":"lantern_lit","data":{"lantern_id":"L1"}}
+{"type":"event","tick":5,"name":"deposit","data":{"lantern_id":"L2","amount":2,"deposited":10}}
+{"type":"event","tick":5,"name":"lantern_lit","data":{"lantern_id":"L2"}}
+{"type":"event","tick":7,"name":"deposit","data":{"lantern_id":"L3","amount":2,"deposited":10}}
+{"type":"event","tick":7,"name":"lantern_lit","data":{"lantern_id":"L3"}}
+{"type":"event","tick":9,"name":"deposit","data":{"lantern_id":"L4","amount":2,"deposited":10}}
+{"type":"event","tick":9,"name":"lantern_lit","data":{"lantern_id":"L4"}}
+{"type":"event","tick":9,"name":"game_over","data":{"result":"won","reason":"all_lit"}}
+{"type":"snapshot","tick":9,"sim_tick":9,"state":"won","night":1,"time_left_s":299.85,"score":1348,"wind":{"active":false,"dir_deg":0.0},"player":{"pos":[0.0,0.0,0.0],"vel":[0.0,0.0,0.0],"grounded":true,"flames":3,"carried":0,"invuln":false,"dash_cd_s":0.0,"pulse_cd_s":0.0,"charm_s":0.0},"lanterns":[{"id":"L1","pos":[0.0,0.0,1.5],"lit":true,"deposited":10},{"id":"L2","pos":[1.5,0.0,0.0],"lit":true,"deposited":10},{"id":"L3","pos":[0.0,0.0,-1.5],"lit":true,"deposited":10},{"id":"L4","pos":[-1.5,0.0,0.0],"lit":true,"deposited":10},{"id":"L5","pos":[1.0,0.0,1.0],"lit":true,"deposited":10}],"shades":[],"motes_active":0,"motes":[],"drifters":[],"charms":[]}
+{"type":"end","ticks":9,"state":"won","score":1348}
