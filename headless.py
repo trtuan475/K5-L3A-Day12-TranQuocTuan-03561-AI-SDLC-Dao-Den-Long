@@ -1,4 +1,4 @@
-"""Headless runner (Test Contract v1.0).
+"""Headless runner (Test Contract v1.1).
 
 python3 headless.py --seed 1 --night 1 [--scenario s.json] [--inputs i.json] --ticks N --out o.jsonl [--snapshot-every 10]
 Exit 0 on success, 2 on bad arguments / malformed inputs or scenario, 1 on other errors.
@@ -29,6 +29,7 @@ def run(args):
         raise ScenarioError("--ticks must be >= 0 and --snapshot-every >= 1")
     game = Game(seed=args.seed, night=args.night, scenario=scenario)
     with open(args.out, "w", encoding="utf-8") as f:
+        _dump(f, {"type": "event", "tick": 0, "name": "night_start", "data": {"night": game.night}})
         _dump(f, game.snapshot())
         last_snap = 0
         for k in range(args.ticks):
@@ -37,7 +38,7 @@ def run(args):
             if game.tick % args.snapshot_every == 0:
                 _dump(f, game.snapshot())
                 last_snap = game.tick
-            if game.state != "playing":
+            if game.over:
                 break
         if last_snap != game.tick:
             _dump(f, game.snapshot())

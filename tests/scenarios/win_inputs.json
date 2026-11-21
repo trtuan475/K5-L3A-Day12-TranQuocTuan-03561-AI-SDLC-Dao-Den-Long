@@ -1,8 +1,8 @@
 { "frames": [
-  { "tick": 1, "interact": true }, { "tick": 2, "interact": false },
-  { "tick": 3, "interact": true }, { "tick": 4, "interact": false },
-  { "tick": 5, "interact": true }, { "tick": 6, "interact": false },
-  { "tick": 7, "interact": true }, { "tick": 8, "interact": false },
-  { "tick": 9, "interact": true }, { "tick": 10, "interact": false },
-  { "tick": 11, "move": [0, 1] }
+  { "tick": 0, "interact": true }, { "tick": 1, "interact": false },
+  { "tick": 2, "interact": true }, { "tick": 3, "interact": false },
+  { "tick": 4, "interact": true }, { "tick": 5, "interact": false },
+  { "tick": 6, "interact": true }, { "tick": 7, "interact": false },
+  { "tick": 8, "interact": true }, { "tick": 9, "interact": false },
+  { "tick": 11, "move": [0, 1], "dash": true }, { "tick": 12, "dash": false }
 ] }

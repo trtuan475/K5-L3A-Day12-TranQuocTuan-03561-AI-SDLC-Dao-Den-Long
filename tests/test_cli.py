@@ -52,8 +52,24 @@ class TestCLI(unittest.TestCase):
                      "--inputs", os.path.join(SCN, "win_inputs.json"))[1]
         self.assertEqual(a, b)
 
+    def test_v11_snapshot_fields(self):  # P2-15
+        for night in ("1", "2", "3"):
+            p, lines = headless("--seed", "3", "--night", night, "--ticks", "20")
+            self.assertEqual(p.returncode, 0, p.stderr)
+            self.assertEqual(lines[0], {"type": "event", "tick": 0, "name": "night_start", "data": {"night": int(night)}})
+            s = lines[1]
+            self.assertEqual(s["night"], int(night))
+            self.assertEqual(set(s["wind"]), {"active", "dir_deg"})
+            for k in ("pos", "vel", "grounded", "flames", "carried", "invuln", "dash_cd_s", "pulse_cd_s", "charm_s"):
+                self.assertIn(k, s["player"])
+            for k in ("motes", "drifters", "charms", "shades", "lanterns"):
+                self.assertIsInstance(s[k], list)
+            self.assertEqual(set(s["motes"][0]), {"id", "pos", "kind", "ttl_s"})
+        p, _ = headless("--seed", "1", "--night", "4", "--ticks", "5")
+        self.assertEqual(p.returncode, 2)
+
     def test_scenario_win(self):  # AC4 + AC8 end-to-end through the CLI
-        p, lines = headless("--seed", "1", "--night", "1", "--ticks", "2000",
+        p, lines = headless("--seed", "1", "--night", "1", "--ticks", "200",
                             "--scenario", os.path.join(SCN, "win.json"),
                             "--inputs", os.path.join(SCN, "win_inputs.json"))
         self.assertEqual(p.returncode, 0, p.stderr)

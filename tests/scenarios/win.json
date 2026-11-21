@@ -1,14 +1,11 @@
 {
-  "_comment": "AC4/AC8: 25 motes at the start point, 5 lanterns moved within interact_radius. Win at tick 10.",
-  "player": { "pos": [0, 0, 0], "carried": 0, "flames": 3 },
-  "random_motes": false,
-  "random_shades": false,
-  "motes": [[0,0,0.5],[0,0,0.5],[0,0,0.5],[0,0,0.5],[0,0,0.5],[0,0,0.5],[0,0,0.5],[0,0,0.5],[0,0,0.5],[0,0,0.5],
-            [0,0,0.5],[0,0,0.5],[0,0,0.5],[0,0,0.5],[0,0,0.5],[0,0,0.5],[0,0,0.5],[0,0,0.5],[0,0,0.5],[0,0,0.5],
-            [0,0,0.5],[0,0,0.5],[0,0,0.5],[0,0,0.5],[0,0,0.5]],
-  "shades": [],
+  "_comment": "Phase 2: lantern_cost 10. Player carries 10, each lantern already has 8, 5 interacts win at tick 9.",
+  "player": { "pos": [0, 0, 0], "carried": 10, "flames": 3 },
+  "random_motes": false, "random_shades": false, "random_drifters": false,
+  "motes": [], "shades": [],
   "lanterns": [
-    { "id": "L1", "pos": [0, 0, 2] }, { "id": "L2", "pos": [2, 0, 0] }, { "id": "L3", "pos": [0, 0, -2] },
-    { "id": "L4", "pos": [-2, 0, 0] }, { "id": "L5", "pos": [1.5, 0, 1.5] }
+    { "id": "L1", "pos": [0, 0, 1.5], "deposited": 8 }, { "id": "L2", "pos": [1.5, 0, 0], "deposited": 8 },
+    { "id": "L3", "pos": [0, 0, -1.5], "deposited": 8 }, { "id": "L4", "pos": [-1.5, 0, 0], "deposited": 8 },
+    { "id": "L5", "pos": [1, 0, 1], "deposited": 8 }
   ]
 }
