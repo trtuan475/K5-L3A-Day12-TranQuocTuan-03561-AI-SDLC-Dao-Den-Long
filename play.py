@@ -5,11 +5,38 @@ python3 play.py --night 2             jump straight to a night (testing)
 python3 play.py --demo [--night N] --shots DIR   bot plays, saves screenshots, quits
 python3 play.py --bench 20 --night 3  measure average FPS at 1280x720 for 20 s (bot plays), writes --out file
 """
-import argparse
-import json
-import math
-import os
 import time as utime
+T_START = utime.perf_counter()  # load_ms reference (process start ~= interpreter start)
+
+import argparse  # noqa: E402
+import json  # noqa: E402
+import math  # noqa: E402
+import os  # noqa: E402
+import platform  # noqa: E402
+import random  # noqa: E402
+import resource  # noqa: E402
+import sys  # noqa: E402
+
+from lantern_island import leaderboard as LB  # noqa: E402
+
+ap = argparse.ArgumentParser()
+ap.add_argument("--seed", type=int, default=1)
+ap.add_argument("--night", type=int, default=0)
+ap.add_argument("--demo", action="store_true")
+ap.add_argument("--shots")
+ap.add_argument("--bench", type=float, default=0, help="(Phase 2) bot-play FPS check for N seconds")
+ap.add_argument("--bench-mode", action="store_true", help="Ticket-04 standard benchmark scene")
+ap.add_argument("--duration", type=float, default=30)
+ap.add_argument("--out", default="fps.txt")
+ap.add_argument("--colorblind", action="store_true", help="force colour-blind palette (screenshots)")
+ap.add_argument("--export-leaderboard", metavar="OUT")
+ARGS, _ = ap.parse_known_args()
+if ARGS.export_leaderboard:  # no window: write {"entries": [...]} and exit
+    LB.export(ARGS.export_leaderboard)
+    sys.exit(0)
+if ARGS.bench_mode:
+    ARGS.seed = ARGS.seed if "--seed" in sys.argv else 42
+AUTO = ARGS.demo or ARGS.bench > 0
 
 from ursina import (AmbientLight, Audio, Button, DirectionalLight, Entity, Mesh, Slider, Text, Ursina, Vec3,
                     application, camera, color, destroy, held_keys, mouse, scene, window)
@@ -18,20 +45,11 @@ from ursina.models.procedural.cylinder import Cylinder
 from panda3d.core import CullFaceAttrib
 from ursina.shaders import lit_with_shadows_shader
 
-from lantern_island.autoplay import Bot
-from lantern_island.maps import NIGHTS, RAMPS_N3
-from lantern_island.sim import DT, TPS, Game, dist_xz
-
-ap = argparse.ArgumentParser()
-ap.add_argument("--seed", type=int, default=1)
-ap.add_argument("--night", type=int, default=0)
-ap.add_argument("--demo", action="store_true")
-ap.add_argument("--shots")
-ap.add_argument("--bench", type=float, default=0)
-ap.add_argument("--out", default="fps.txt")
-ap.add_argument("--colorblind", action="store_true", help="force colour-blind palette (screenshots)")
-ARGS, _ = ap.parse_known_args()
-AUTO = ARGS.demo or ARGS.bench > 0
+from ursina.prefabs.input_field import InputField  # noqa: E402
+from lantern_island.autoplay import Bot  # noqa: E402
+from lantern_island.bench_scene import bench_game  # noqa: E402
+from lantern_island.maps import NIGHTS, RAMPS_N3  # noqa: E402
+from lantern_island.sim import DT, TPS, Game, dist_xz  # noqa: E402
 
 # ---------------- palette (Ticket-02 part 3) ----------------
 H = color.hex
@@ -66,16 +84,26 @@ INTRO = {
 }
 
 # ---------------- settings (persisted) ----------------
-SETTINGS_PATH = os.path.join(os.path.expanduser("~"), ".dao_den_long_settings.json")
+SETTINGS_PATH = os.environ.get("DDL_SETTINGS", os.path.join(os.path.expanduser("~"), ".dao_den_long_settings.json"))
+# Ticket-04 accessibility: every action can be rebound (saved). Escape always opens pause as a fallback.
+DEFAULT_KEYS = {"forward": "w", "back": "s", "left": "a", "right": "d", "jump": "space", "dash": "shift",
+                "interact": "e", "pulse": "f", "pause": "p"}
+ACTION_NAMES = {"forward": "Đi tới", "back": "Đi lùi", "left": "Sang trái", "right": "Sang phải", "jump": "Nhảy",
+                "dash": "Lướt", "interact": "Tương tác", "pulse": "Tỏa sáng", "pause": "Tạm dừng"}
 
 
 def load_settings():
-    s = {"volume": 0.7, "sensitivity": 1.0, "colorblind": False}
+    s = {"volume": 0.7, "sensitivity": 1.0, "colorblind": False, "reduce_motion": False, "large_text": False,
+         "keys": dict(DEFAULT_KEYS)}
     try:
         with open(SETTINGS_PATH, encoding="utf-8") as f:
             for k, v in json.load(f).items():
-                if k in s:
-                    s[k] = bool(v) if k == "colorblind" else float(v)
+                if k == "keys" and isinstance(v, dict):
+                    s["keys"].update({a: str(x) for a, x in v.items() if a in DEFAULT_KEYS})
+                elif k in ("colorblind", "reduce_motion", "large_text"):
+                    s[k] = bool(v)
+                elif k in s:
+                    s[k] = float(v)
     except (OSError, ValueError):
         pass
     return s
@@ -93,10 +121,13 @@ SETTINGS = load_settings()
 if ARGS.colorblind:
     SETTINGS["colorblind"] = True
 
-app = Ursina(title="Dao Den Long", borderless=False, development_mode=False,
-             size=(1280, 720) if ARGS.bench else None, vsync=not ARGS.bench)
+BENCH = ARGS.bench > 0 or ARGS.bench_mode
+app = Ursina(title="Dao Den Long", borderless=False, development_mode=False, fullscreen=False, vsync=not BENCH)
+if BENCH:  # 1280x720 window (set after init: passing size= to Ursina() breaks the UI layer)
+    window.size = (1280, 720)
+    window.position = (40, 40)
 window.color = PAL["sky"]
-window.fps_counter.enabled = bool(ARGS.bench)
+window.fps_counter.enabled = False
 window.exit_button.visible = False
 scene.fog_color = PAL["fog"]
 scene.fog_density = (30, 110)
@@ -104,6 +135,8 @@ AMBIENT = AmbientLight(color=color.rgba(0.15, 0.15, 0.15, 1))
 MOON = DirectionalLight(color=color.rgba(0.35, 0.38, 0.55, 1), shadows=False)
 MOON.look_at(Vec3(0.4, -1, 0.6))
 
+BASE_DIR = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))  # PyInstaller-safe
+application.asset_folder = __import__("pathlib").Path(BASE_DIR)
 SFX = {}
 for _n in ("pick", "lit", "pulse", "hit", "jump", "dash", "win", "lose", "shade", "tick", "wind", "charm", "steal"):
     SFX[_n] = Audio(f"assets/sfx/{_n}.wav", autoplay=False, loop=False)
@@ -112,7 +145,7 @@ MUSIC = Audio("assets/sfx/music.wav", autoplay=False, loop=True)
 
 def sfx(name):
     a = SFX.get(name)
-    if a and not ARGS.bench:
+    if a and not BENCH:
         a.volume = SETTINGS["volume"]
         a.play()
 
@@ -274,29 +307,37 @@ class World:
         return e
 
     def _upd_mote(self, e, m, t_anim):
+        # perf (Ticket-04 bench): raw Panda3D setters, no Ursina property overhead
         ph = (hash(m["id"]) % 100) / 10
-        e.position = Vec3(m["pos"][0], m["pos"][1] + 0.9 + 0.25 * math.sin(t_anim * 2.5 + ph), m["pos"][2])
-        e.visible = not (m["ttl"] is not None and m["ttl"] < 120 and int(t_anim * 8) % 2 == 0)
+        e.setPos(m["pos"][0], m["pos"][1] + 0.9 + 0.25 * math.sin(t_anim * 2.5 + ph), m["pos"][2])
+        if m["ttl"] is not None:
+            e.visible = not (m["ttl"] < 120 and int(t_anim * 8) % 2 == 0)
 
     def _new_shade(self, s):
         e = unlit_e(parent=self.root, model="sphere", scale=(1.6, 1.9, 1.6), color=PAL["shade"])
         rim = unlit_e(parent=e, model="sphere", color=rim_color(), scale=1.12)
         rim.setAttrib(CullFaceAttrib.make_reverse())  # outline: only the back faces show around the silhouette
-        for x in (-0.15, 0.15):
-            unlit_e(parent=e, model="sphere", color=rim_color(), scale=0.12, position=(x, 0.15, 0.45))
-        e.cb_parts = list(e.children)
+        eyes = unlit_e(parent=e, model="cube", color=rim_color(), scale=(0.42, 0.1, 0.05), position=(0, 0.15, 0.48))
+        e.cb_parts = [rim, eyes]
+        e.cache = (None, None, None)  # (state, spawn-scale, colourblind) -> only touch Ursina props on change
         return e
 
     def _upd_shade(self, e, s, t_anim):
         p = self.g.player["pos"]
-        e.position = Vec3(*s["pos"]) + Vec3(0, 0.15 * math.sin(t_anim * 3 + len(s["id"])), 0)
-        e.color = PAL["shade_stun"] if s["state"] == "stunned" else PAL["shade"]
-        rc = rim_color()
-        for part in e.cb_parts:
-            part.color = rc
-        k = (0.4 + 0.6 * (1 - s["spawn"] / 60)) if s["state"] == "spawning" else 1.0
-        e.scale = Vec3(1.6, 1.9, 1.6) * k
-        e.look_at_2d(Vec3(p[0], 0, p[2]), "y")
+        x, y, z = s["pos"]
+        e.setPos(x, y + 0.15 * math.sin(t_anim * 3 + len(s["id"])), z)
+        e.setH(math.degrees(math.atan2(x - p[0], z - p[2])))  # face Mây (Panda heading)
+        k = round((0.4 + 0.6 * (1 - s["spawn"] / 60)), 2) if s["state"] == "spawning" else 1.0
+        cb = SETTINGS["colorblind"]
+        if e.cache != (s["state"], k, cb):
+            if e.cache[0] != s["state"]:
+                e.color = PAL["shade_stun"] if s["state"] == "stunned" else PAL["shade"]
+            if e.cache[1] != k:
+                e.scale = Vec3(1.6, 1.9, 1.6) * k
+            if e.cache[2] != cb:
+                for part in e.cb_parts:
+                    part.color = rim_color()
+            e.cache = (s["state"], k, cb)
 
     def _new_drifter(self, d):
         e = Entity(parent=self.root)
@@ -317,7 +358,9 @@ class World:
 
 # ---------------- HUD ----------------
 def ui_text(**kw):
+    """Ticket-04: UI text >= 18 px at 1280x720 (Text.size 0.025 * 720 = 18 px at scale 1), x1.25 'large text'."""
     kw.setdefault("color", PAL["text"])
+    kw["scale"] = max(1.0, kw.get("scale", 1.0)) * (1.25 if SETTINGS["large_text"] else 1.0)
     return Text(**kw)
 
 
@@ -346,22 +389,38 @@ class HUD:
                             position=(-0.09, 0.46), enabled=False)
         ui_text(parent=self.warn, text="!", origin=(0, 0), scale=18, color=color.black, z=-0.01, y=-0.08)
         self.goal = ui_text(parent=self.root, origin=(0.5, 0.5), position=tr + Vec3(-0.03, -0.12, 0), scale=0.75)
+        self.captions = ui_text(parent=self.root, origin=(0, 0.5), position=(0, 0.36), scale=1.1)
+        self.shade_arrow = unlit_e(parent=self.root, model=Mesh(vertices=[(-0.5, -0.4, 0), (0.5, -0.4, 0), (0, 0.6, 0)],
+                                                                 triangles=[(0, 1, 2)]), scale=0.05, enabled=False)
+        self.flash = unlit_e(parent=self.root, model="quad", scale=(4, 2), color=color.rgba(1, 1, 1, 0), z=-0.5)
         br = window.bottom_right
         self.icons = {}
         for i, (key, label) in enumerate((("dash", "Lướt [Shift]"), ("pulse", "Tỏa sáng [F]"))):
-            pos = br + Vec3(-0.21 + i * 0.11, 0.09, 0)
+            pos = br + Vec3(-0.30 + i * 0.17, 0.11, 0)
             unlit_e(parent=self.root, model="circle", scale=0.07, color=PAL["gold"] if key == "pulse" else PAL["drifter"],
                     position=pos)
             cover = unlit_e(parent=self.root, model="quad", scale=(0.075, 0.075), color=color.rgba(0, 0, 0, 0.6),
                             position=pos + Vec3(0, -0.0375, -0.01), origin=(0, -0.5))
             txt = ui_text(parent=self.root, origin=(0, 0), position=pos + Vec3(0, 0, -0.02), scale=0.8)
-            ui_text(parent=self.root, text=label, origin=(0, 0), position=pos + Vec3(0, -0.055, 0), scale=0.6)
+            ui_text(parent=self.root, text=label, origin=(0, 0), position=pos + Vec3(0, -0.06, 0), scale=0.6)
             self.icons[key] = (cover, txt)
         self.prompt = ui_text(parent=self.root, origin=(0, 0), position=(0, -0.3), scale=1.2)
         self.status = ui_text(parent=self.root, origin=(0, 0), position=(0, 0.39), scale=0.9)
         self.arrow = unlit_e(parent=self.root, model=Mesh(vertices=[(-0.5, -0.4, 0), (0.5, -0.4, 0), (0, 0.6, 0)],
                                                            triangles=[(0, 1, 2)]),
                              color=PAL["lamp_on"], scale=0.045, enabled=False)
+
+    def edge_arrow(self, arrow, P, target, yaw):
+        """Point an arrow at the screen edge toward a world target that is outside the view cone."""
+        ang = math.degrees(math.atan2(target[0] - P["pos"][0], target[2] - P["pos"][2])) - yaw
+        ang = (ang + 180) % 360 - 180
+        if abs(ang) <= camera.fov * window.aspect_ratio / 2 * 0.85:
+            arrow.enabled = False
+            return
+        arrow.enabled = True
+        r = math.radians(ang)
+        arrow.position = (math.sin(r) * 0.36, math.cos(r) * 0.3 - 0.05, -0.05)
+        arrow.rotation_z = ang
 
     def sync(self, g, total, t_anim, yaw):
         P = g.player
@@ -454,6 +513,20 @@ class Flow:
         self.pending = {}
         self.last_sec = None
         self.mode_time = 0.0
+        self.nights_won = 0
+        self.caps = []  # (text, until_anim)
+        self.alert_shade = None  # (shade_id, until_anim)
+        self.low_fuel_seen = set()
+        self.shake = 0.0
+        self.flash = 0.0
+        self.waiting_key = None
+        self.bench_t0 = None
+        self.bench_dts = []
+        self.bench_last = None
+        self.bench_load_ms = None
+
+    def caption(self, text, secs=3.0):
+        self.caps = [c for c in self.caps if c[0] != text] + [(text, self.anim + secs)]
 
     def clear_ui(self):
         if self.ui:
@@ -477,11 +550,45 @@ class Flow:
         self.set_mode("menu")
         self.ui = panel("Đảo Đèn Lồng", [("Bắt đầu", lambda: self.new_run(1)), ("Đêm 2 - Đảo Cau", lambda: self.new_run(2)),
                                          ("Đêm 3 - Đảo Chuông", lambda: self.new_run(3)),
+                                         ("Bảng xếp hạng", self.show_leaderboard),
                                          ("Cài đặt", lambda: self.settings("menu")), ("Thoát", application.quit)],
-                        "Giúp Mây thắp lại các Đèn Lồng Lớn")
+                        "Giúp Mây giữ các Đèn Lồng Lớn sáng tới bình minh")
+
+    # ---- leaderboard (Ticket-04 part 3) ----
+    def show_leaderboard(self):
+        self.clear_ui()
+        self.clear_game()
+        self.set_mode("leaderboard")
+        rows = LB.load()
+        lines = [f"{i + 1:>2}. {e['name']:<12} {e['score']:>6}   {e['nights_won']} Đêm   {e['achieved_at'][:16].replace('T', ' ')}"
+                 for i, e in enumerate(LB._sorted(rows))] or ["(chưa có ai)"]
+        self.ui = panel("Bảng xếp hạng", [], "")
+        ui_text(parent=self.ui, text="\n".join(lines), origin=(0, 0.5), y=0.2, font="VeraMono.ttf", scale=1.0)
+        Button(parent=self.ui, text="Về menu", scale=(0.3, 0.065), y=-0.38, color=alpha(PAL["wood"], 0.95),
+               highlight_color=PAL["lamp_on"], on_click=self.menu)
+
+    def ask_name(self):
+        self.clear_ui()
+        self.set_mode("name")
+        self.ui = panel("Lưu điểm", [], f"Tổng điểm {self.total} · {self.nights_won} Đêm thắng. Nhập tên (3-12 ký tự):")
+        field = InputField(parent=self.ui, y=0.06, character_limit=12, max_lines=1)
+        msg = ui_text(parent=self.ui, text="", origin=(0, 0), y=-0.03, color=danger_color())
+
+        def save():
+            try:
+                LB.add(field.text.strip(), self.total, self.nights_won, ARGS.seed)
+            except ValueError as e:
+                msg.text = str(e)
+                return
+            self.show_leaderboard()
+        Button(parent=self.ui, text="Lưu", scale=(0.25, 0.065), y=-0.12, x=-0.14, color=alpha(PAL["wood"], 0.95),
+               highlight_color=PAL["lamp_on"], on_click=save)
+        Button(parent=self.ui, text="Bỏ qua", scale=(0.25, 0.065), y=-0.12, x=0.14, color=alpha(PAL["wood"], 0.95),
+               highlight_color=PAL["lamp_on"], on_click=self.menu)
 
     def new_run(self, night):
         self.total = 0
+        self.nights_won = 0
         self.intro(night)
 
     def intro(self, night):
@@ -501,9 +608,10 @@ class Flow:
         self.acc = 0.0
         self.yaw = 0.0
         self.last_sec = None
+        self.caps, self.alert_shade, self.low_fuel_seen = [], None, set()
         self.set_mode("play")
         MUSIC.volume = SETTINGS["volume"] * 0.5
-        if not ARGS.bench:
+        if not BENCH:
             MUSIC.play()
 
     def pause_panel(self):
@@ -552,14 +660,68 @@ class Flow:
             return f"Bảng màu dễ phân biệt: {'Bật' if SETTINGS['colorblind'] else 'Tắt'}"
         cb = Button(parent=self.ui, text=cb_label(), scale=(0.5, 0.065), y=-0.09, color=alpha(PAL["wood"], 0.95),
                     highlight_color=PAL["lamp_on"])
+        for i, (key, label) in enumerate((("reduce_motion", "Giảm chuyển động"), ("large_text", "Chữ lớn (x1.25)"))):
+            btn = Button(parent=self.ui, scale=(0.5, 0.065), y=-0.17 - i * 0.08, color=alpha(PAL["wood"], 0.95),
+                         highlight_color=PAL["lamp_on"])
+            btn.text = f"{label}: {'Bật' if SETTINGS[key] else 'Tắt'}"
+
+            def flip(btn=btn, key=key, label=label):
+                SETTINGS[key] = not SETTINGS[key]
+                btn.text = f"{label}: {'Bật' if SETTINGS[key] else 'Tắt'}"
+                save_settings()
+            btn.on_click = flip
+        Button(parent=self.ui, text="Đổi phím", scale=(0.5, 0.065), y=-0.33, color=alpha(PAL["wood"], 0.95),
+               highlight_color=PAL["lamp_on"], on_click=lambda: self.keybinds(back))
 
         def toggle_cb():
             SETTINGS["colorblind"] = not SETTINGS["colorblind"]
             cb.text = cb_label()
             save_settings()
         cb.on_click = toggle_cb
-        Button(parent=self.ui, text="Xong", scale=(0.3, 0.065), y=-0.19, color=alpha(PAL["wood"], 0.95),
+        Button(parent=self.ui, text="Xong", scale=(0.3, 0.065), y=-0.41, color=alpha(PAL["wood"], 0.95),
                highlight_color=PAL["lamp_on"], on_click=back_fn)
+
+    def keybinds(self, back, msg=""):
+        """Rebind every action; duplicates are rejected with a message; restore defaults."""
+        self.clear_ui()
+        self.waiting_key = None
+        self.ui = Entity(parent=camera.ui)
+        unlit_e(parent=self.ui, model="quad", scale=(2.2, 1.2), color=color.rgba(0.05, 0.07, 0.15, 0.9), z=0.1)
+        ui_text(parent=self.ui, text="Đổi phím", origin=(0, 0), y=0.42, scale=2.0, color=PAL["gold"])
+        self.key_msg = ui_text(parent=self.ui, text=msg, origin=(0, 0), y=0.35, color=danger_color())
+        for i, act in enumerate(DEFAULT_KEYS):
+            y = 0.27 - i * 0.065
+            ui_text(parent=self.ui, text=ACTION_NAMES[act], origin=(0.5, 0), x=-0.02, y=y)
+
+            def wait(act=act):
+                self.waiting_key = (act, back)
+                self.key_msg.text = f"Nhấn phím mới cho \"{ACTION_NAMES[act]}\"..."
+                self.key_msg.color = PAL["text"]
+            Button(parent=self.ui, text=SETTINGS["keys"][act], scale=(0.22, 0.055), x=0.12, y=y,
+                   color=alpha(PAL["wood"], 0.95), highlight_color=PAL["lamp_on"], on_click=wait)
+
+        def reset():
+            SETTINGS["keys"] = dict(DEFAULT_KEYS)
+            save_settings()
+            self.keybinds(back, "Đã khôi phục mặc định")
+        Button(parent=self.ui, text="Khôi phục mặc định", scale=(0.4, 0.06), x=-0.22, y=-0.36,
+               color=alpha(PAL["wood"], 0.95), highlight_color=PAL["lamp_on"], on_click=reset)
+        Button(parent=self.ui, text="Xong", scale=(0.3, 0.06), x=0.2, y=-0.36, color=alpha(PAL["wood"], 0.95),
+               highlight_color=PAL["lamp_on"], on_click=lambda: self.settings(back))
+
+    def bind_key(self, key):
+        act, back = self.waiting_key
+        if key in ("left mouse down", "right mouse down", "escape") or key.endswith(" up") or "scroll" in key:
+            return
+        key = key.replace(" down", "")
+        clash = [a for a, k in SETTINGS["keys"].items() if k == key and a != act]
+        if clash:  # duplicate: report, keep the old binding
+            self.keybinds(back, f"Phím \"{key}\" đã dùng cho \"{ACTION_NAMES[clash[0]]}\" - chọn phím khác")
+            self.waiting_key = None
+            return
+        SETTINGS["keys"][act] = key
+        save_settings()
+        self.keybinds(back, f"{ACTION_NAMES[act]} = {key}")
 
     def result(self):
         g = self.game
@@ -569,8 +731,9 @@ class Flow:
         self.set_mode("result")
         if won:
             self.total += g.score
+            self.nights_won += 1
             if g.night == 3:
-                self.ui = panel("Bình Minh", [("Về menu", self.menu)],
+                self.ui = panel("Bình Minh", [("Lưu điểm", self.ask_name), ("Về menu", self.menu)],
                                 f"Ba hòn đảo đã sáng lại. Mặt trời lên trên biển mây.\nTổng điểm: {self.total}")
                 return
             self.ui = panel(f"Đêm {g.night}: đảo sáng tới bình minh!", [(f"Đêm {g.night + 1}", lambda: self.intro(g.night + 1)),
@@ -578,15 +741,17 @@ class Flow:
                             f"Điểm Đêm: {g.score}    Tổng: {self.total}")
         else:
             why = "Hết Ngọn Lửa" if g.result_reason == "no_flames" else "Bình minh tới, đảo chưa đủ sáng"
-            self.ui = panel(why, [("Chơi lại Đêm", self.start_night), ("Về menu", self.menu)],
+            self.ui = panel(why, [("Chơi lại Đêm", self.start_night), ("Lưu điểm", self.ask_name),
+                                  ("Về menu", self.menu)],
                             f"Điểm Đêm (không cộng): {g.score}    Tổng: {self.total}")
 
     # -------- per-frame --------
     def human_frame(self):
-        f = {"move": [held_keys["d"] - held_keys["a"], held_keys["w"] - held_keys["s"]], "cam_yaw_deg": self.yaw,
-             "jump": bool(held_keys["space"]), "interact": bool(held_keys["e"]),
-             "pulse": bool(held_keys["f"] or held_keys["left mouse"]),
-             "dash": bool(held_keys["shift"] or held_keys["left shift"]), "pause": False}
+        K = SETTINGS["keys"]
+        f = {"move": [held_keys[K["right"]] - held_keys[K["left"]], held_keys[K["forward"]] - held_keys[K["back"]]],
+             "cam_yaw_deg": self.yaw, "jump": bool(held_keys[K["jump"]]), "interact": bool(held_keys[K["interact"]]),
+             "pulse": bool(held_keys[K["pulse"]] or held_keys["left mouse"]),
+             "dash": bool(held_keys[K["dash"]] or (K["dash"] == "shift" and held_keys["left shift"])), "pause": False}
         f.update(self.pending)
         self.pending = {}
         return f
@@ -621,8 +786,15 @@ class Flow:
             was_grounded = g.player["grounded"]
             was_warn = g.wind_warning
             for _, name, _d in g.step(f):
+                if name == "shade_spawned":
+                    self.caption("Bóng Mực xuất hiện!")
+                    self.alert_shade = (_d["id"], self.anim + 3.0)
+                elif name == "player_hit" and not SETTINGS["reduce_motion"]:
+                    self.shake = 0.3
                 if name == "pulse":
                     self.world.pulse_t = 0.35
+                    if not SETTINGS["reduce_motion"]:
+                        self.flash = 0.15
                     sfx("pulse")
                 elif name in ("mote_picked", "lantern_lit", "dash", "shade_spawned", "charm_picked"):
                     sfx({"mote_picked": "pick", "lantern_lit": "lit", "dash": "dash", "shade_spawned": "shade",
@@ -635,18 +807,107 @@ class Flow:
                 sfx("jump")
             if g.wind_warning and not was_warn:
                 sfx("wind")
+                self.caption("Gió sắp thổi!", 2.5)
             sec = int(math.ceil(g.time_left_s))
             if sec <= 10 and sec != self.last_sec and not g.over:
                 sfx("tick")
+                if sec == 10:
+                    self.caption("10 giây cuối!", 10)
+            for L in g.lanterns:
+                low = L["lit"] and L["fuel"] < g.FUEL_LOW
+                if low and L["id"] not in self.low_fuel_seen:
+                    self.caption(f"Đèn {L['id']} sắp hết dầu!", 4)
+                    self.low_fuel_seen.add(L["id"])
+                elif not low:
+                    self.low_fuel_seen.discard(L["id"])
             self.last_sec = sec
         self.world.sync(self.anim)
         self.hud.sync(g, self.total, self.anim, self.yaw)
+        self.caps = [c for c in self.caps if c[1] > self.anim]
+        self.hud.captions.text = "\n".join(c[0] for c in self.caps[-3:])  # subtitles / visual cues
+        self.hud.shade_arrow.color = rim_color()
+        sh = None
+        if self.alert_shade and self.alert_shade[1] > self.anim:
+            sh = next((s for s in g.shades if s["id"] == self.alert_shade[0]), None)
+        if sh:
+            self.hud.edge_arrow(self.hud.shade_arrow, g.player, sh["pos"], self.yaw)
+        else:
+            self.hud.shade_arrow.enabled = False
+        self.flash = max(0.0, self.flash - dt)
+        self.hud.flash.color = color.rgba(1, 1, 1, 0.25 * self.flash / 0.15)
         th = math.radians(self.yaw)
         p = Vec3(*g.player["pos"])
         camera.position = p + Vec3(-math.sin(th) * 14, 9, -math.cos(th) * 14)
+        if self.shake > 0:  # camera shake on hit (off with "reduce motion")
+            self.shake = max(0.0, self.shake - dt)
+            camera.position += Vec3(random.uniform(-1, 1), random.uniform(-1, 1), 0) * 0.25 * self.shake / 0.3
         camera.rotation = Vec3(math.degrees(math.atan2(9 - 1.2, 14)), self.yaw, 0)
         if g.over:
             self.result()
+
+
+    # ---- Ticket-04 standard benchmark ----
+    def start_bench(self):
+        self.clear_ui()
+        self.game = bench_game(ARGS.seed)
+        self.world = World(self.game)
+        self.hud = HUD()
+        self.set_mode("benchmark")
+        self.bench_t0 = None
+
+    def bench_update(self):
+        now = utime.perf_counter()
+        if self.bench_t0 is None:  # first frame of the bench scene
+            self.bench_t0 = self.bench_last = now
+            self.bench_load_ms = round((now - T_START) * 1000)
+        dt_ms = (now - self.bench_last) * 1000
+        self.bench_last = now
+        el = now - self.bench_t0
+        g = self.game
+        self.acc += min(dt_ms / 1000, 0.1)
+        steps = 0
+        while self.acc >= DT and steps < 8:
+            self.acc -= DT
+            steps += 1
+            g.step(None)  # no player input
+        self.world.sync(el)
+        self.hud.sync(g, 0, el, 0)
+        th = 2 * math.pi * el / 15.0  # orbit r=30, y=15, CCW from +X (z = r sin), 15 s per lap
+        x, z = 30 * math.cos(th), 30 * math.sin(th)
+        camera.position = Vec3(x, 15, z)
+        camera.rotation = Vec3(math.degrees(math.atan2(15, 30)), math.degrees(math.atan2(-x, -z)), 0)
+        if el >= 3.0 and dt_ms > 0:
+            self.bench_dts.append(dt_ms)
+        if ARGS.shots and el >= 5.0 and "bench" not in STATE["shots"]:  # evidence only (not used in the scored run)
+            snap("bench")
+        if el >= 3.0 + ARGS.duration:
+            self.bench_finish()
+
+    def bench_finish(self):
+        dts = self.bench_dts
+        n = len(dts)
+        k = max(1, math.ceil(0.01 * n))
+        worst = sorted(dts, reverse=True)[:k]
+        p95 = sorted(dts)[min(n - 1, math.ceil(0.95 * n) - 1)]
+        rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        peak = rss / 2 ** 20 if sys.platform == "darwin" else rss / 1024  # bytes on macOS, KiB on Linux
+        try:
+            from importlib.metadata import version
+            from panda3d.core import PandaSystem
+            renderer = (f"Ursina {version('ursina')} / Panda3D {PandaSystem.getVersionString()} / "
+                        f"{app.win.gsg.getDriverRenderer()}")
+        except Exception:  # noqa: BLE001
+            renderer = "Ursina / Panda3D (OpenGL)"
+        out = {"contract_version": "1.3", "avg_fps": round(1000 * n / sum(dts), 1),
+               "p1_low_fps": round(1000 / (sum(worst) / k), 1), "frame_ms_p95": round(p95, 2), "frames": n,
+               "load_ms": self.bench_load_ms, "peak_mem_mb": round(peak, 1), "vsync_off": True,
+               "renderer": renderer, "os": platform.platform(),
+               "shades": len(self.game.shades), "motes": len(self.game.motes), "seed": ARGS.seed,
+               "duration_s": ARGS.duration}
+        with open(ARGS.out, "w", encoding="utf-8") as f:
+            json.dump(out, f, indent=1, ensure_ascii=False)
+        print("[bench]", json.dumps(out, ensure_ascii=False), flush=True)
+        application.quit()
 
 
 FLOW = Flow()
@@ -654,6 +915,9 @@ STATE = {"shots": [], "frames": 0, "t0": None, "end_frames": 0}
 
 
 def update():
+    if ARGS.bench_mode:
+        FLOW.bench_update()
+        return
     dt = 4 * DT if ARGS.shots else min(utime.dt, 0.1)
     FLOW.update(dt)
     if ARGS.shots:
@@ -721,13 +985,18 @@ def bench():
 
 
 def input(key):  # noqa: A001 (ursina hook name)
-    if key in ("escape", "p") and FLOW.mode in ("play", "pause"):
+    if FLOW.waiting_key:
+        FLOW.bind_key(key)
+        return
+    if key in ("escape", SETTINGS["keys"]["pause"]) and FLOW.mode in ("play", "pause"):
         FLOW.toggle_pause()
     if key == "enter" and FLOW.mode == "intro":
         FLOW.start_night()
 
 
-if ARGS.night and not AUTO:
+if ARGS.bench_mode:
+    FLOW.start_bench()
+elif ARGS.night and not AUTO:
     FLOW.new_run(ARGS.night)
 else:
     FLOW.menu()

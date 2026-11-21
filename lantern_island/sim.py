@@ -160,7 +160,7 @@ def _nonneg_int(d, k, what):
 
 
 class Game:
-    def __init__(self, seed=0, night=1, scenario=None, tuning=None):
+    def __init__(self, seed=0, night=1, scenario=None, tuning=None, bench=False):
         if night not in NIGHTS:
             raise ScenarioError(f"night {night} not available (1, 2, 3)")
         self.t = tuning or load_tuning()
@@ -202,6 +202,8 @@ class Game:
         self.inputs = Inputs()
         self.stats = {"motes": 0, "stuns": 0, "hits": 0, "falls": 0, "steals": 0}
         self._newly_safe = []
+        # Ticket-04 benchmark scene: no spawning, damage, pickups, fuel decay or end of night (shades still move)
+        self.bench = bench
 
         if scenario is not None:
             self._apply_scenario(scenario)
@@ -430,6 +432,10 @@ class Game:
         self.sim_tick += 1
         self._newly_safe = []
         self._counters()                       # 2 (+ fuel decay / drain)
+        if self.bench:
+            self._move_player(edges)
+            self._move_shades()
+            return self.events
         self._lanterns_out()                   # right after 2
         self._move_player(edges)               # 3
         self._pickups()                        # 4
@@ -474,7 +480,7 @@ class Game:
                 if c["respawn"] == 0:
                     c["available"] = True
         for L in self.lanterns:
-            if not L["lit"]:
+            if not L["lit"] or self.bench:  # bench scene: no fuel decay
                 continue
             drainers = [s for s in sorted(self.shades, key=id_key)
                         if s["state"] == "drain" and s.get("target_lantern") == L["id"]]

@@ -1,9 +1,11 @@
 {
-  "contract_version": "1.2",
+  "contract_version": "1.3",
   "team": "03561-tran-quoc-tuan",
   "build_cmd": "python3 -m pip install -r requirements.txt",
   "run_cmd": "python3 play.py",
   "headless_cmd": "python3 headless.py",
+  "bench_cmd": "python3 play.py --bench-mode",
+  "soak_cmd": "python3 soak.py",
   "tuning": {
     "player_speed": 6.0,
     "carry_capacity": 10,
