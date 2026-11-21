@@ -1,0 +1,37 @@
+test_cli_bad_inputs_exit2 (test_cli.TestCLI.test_cli_bad_inputs_exit2) ... ok
+test_cli_bad_json_exit2 (test_cli.TestCLI.test_cli_bad_json_exit2) ... ok
+test_cli_basic (test_cli.TestCLI.test_cli_basic) ... ok
+test_cli_determinism (test_cli.TestCLI.test_cli_determinism) ... ok
+test_scenario_win (test_cli.TestCLI.test_scenario_win) ... ok
+test_determinism (test_sim.TestEnd.test_determinism) ... ok
+test_lose_dawn (test_sim.TestEnd.test_lose_dawn) ... ok
+test_win (test_sim.TestEnd.test_win) ... ok
+test_bad_night (test_sim.TestInit.test_bad_night) ... ok
+test_initial_state (test_sim.TestInit.test_initial_state) ... ok
+test_scenario_setup_no_events_no_score (test_sim.TestInit.test_scenario_setup_no_events_no_score) ... ok
+test_bad_types (test_sim.TestInputsValidation.test_bad_types) ... ok
+test_strictly_increasing (test_sim.TestInputsValidation.test_strictly_increasing) ... ok
+test_cam_yaw (test_sim.TestMove.test_cam_yaw) ... ok
+test_fence (test_sim.TestMove.test_fence) ... ok
+test_fields_persist (test_sim.TestMove.test_fields_persist) ... ok
+test_jump (test_sim.TestMove.test_jump) ... ok
+test_move_speed (test_sim.TestMove.test_move_speed) ... ok
+test_normalize (test_sim.TestMove.test_normalize) ... ok
+test_deposit_and_lit (test_sim.TestPickupDeposit.test_deposit_and_lit) ... ok
+test_interact_out_of_range (test_sim.TestPickupDeposit.test_interact_out_of_range) ... ok
+test_partial_deposit_and_edge (test_sim.TestPickupDeposit.test_partial_deposit_and_edge) ... ok
+test_pickup_capacity (test_sim.TestPickupDeposit.test_pickup_capacity) ... ok
+test_pickup_radius (test_sim.TestPickupDeposit.test_pickup_radius) ... ok
+test_pulse_cooldown (test_sim.TestPulse.test_pulse_cooldown) ... ok
+test_pulse_needs_light (test_sim.TestPulse.test_pulse_needs_light) ... ok
+test_pulse_stun_push (test_sim.TestPulse.test_pulse_stun_push) ... ok
+test_hit (test_sim.TestShades.test_hit) ... ok
+test_invuln (test_sim.TestShades.test_invuln) ... ok
+test_lose_no_flames (test_sim.TestShades.test_lose_no_flames) ... ok
+test_safe_radius (test_sim.TestShades.test_safe_radius) ... ok
+test_shade_chase (test_sim.TestShades.test_shade_chase) ... ok
+
+----------------------------------------------------------------------
+Ran 32 tests in 0.575s
+
+OK
