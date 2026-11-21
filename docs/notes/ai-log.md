@@ -55,3 +55,25 @@ Công cụ: Claude Code (Claude Opus 5.5) trong VS Code. Harness: [AGENTS.md](..
 - Ảnh hưởng tới Phase 1: số liệu và luật điểm đổi theo chuẩn, nên các test Phase 1 bị ảnh hưởng đã được viết lại. `--night 1` vẫn chạy được mọi scenario dạng v1.0.
 - Rủi ro: các giả định B1 (xuất phát Đêm 3 ở (0,0,−30)), B4 (`spawning` 60 tick, `wander` 2 m/s) và B5 (cách đo chênh cao) có thể khác test ẩn.
 - Chưa đạt trọn: bot chưa thắng được Đêm 2/3, nên chưa có ảnh màn Bình Minh. Phần lưu cài đặt, đồng hồ đỏ khi ≤ 30 s, âm thanh và màn Bình Minh **chưa được kiểm chứng** (không có test tự động, chưa ai chơi tay). Cần kiểm tra tay trước Phase 4.
+
+## Phase 3 (Ticket-03 "Đèn cạn dầu", contract v1.2), khoảng 30 phút
+
+**Cách làm:** viết ADR 0001, CHANGELOG và spec C1–C6 **trước** khi sửa code. Sau đó sửa sim trong một bản vá (fuel dùng số nguyên 1/60, `drain`, thắng lúc bình minh, sức chứa, điểm mới). Tiếp theo cập nhật 6 test bị luật mới thay thế (kèm lý do) và thêm 13 test mới. Cuối cùng là bot châm dầu, UI tối thiểu (thanh dầu, mù màu, HUD sức chứa) và verify.
+
+**Token/chi phí (ước tính):** khoảng 120k token. Tiết kiệm nhờ vá bằng script có `assert` (fail ngay nếu đoạn gốc không khớp), không đọc lại file lớn, và chỉ xem 3 ảnh.
+
+**Lỗi của AI và cách phát hiện:**
+| Lỗi | Phát hiện | Sửa / chỉnh harness |
+|---|---|---|
+| Scenario thắng CLI bấm Tương tác nhiều lần tại chỗ: đèn vừa sáng (99.98 dầu) lại thành đèn nhận được gần nhất, nên các lần bấm sau chuyển thành châm dầu | Test CLI đỏ (1 ≠ 3 đèn) | Thiết kế lại scenario. Ghi quy tắc vào AGENTS.md |
+| 3 test mới đặt sai khoảng cách/số tick (drain 2.5 m > 2 m, safe zone 3 tick, sức chứa 2 ≠ 3) | Test đỏ, đối chiếu luật | Sửa test (code đúng) |
+| Bấm lần hai khi nút vẫn đang giữ: không có cạnh false→true | `IndexError` trong `test_refuel` | Thả nút trước khi bấm lại |
+| Test CLI chỉ chạy 200 tick trong khi bình minh ở tick 240 | Test đỏ | Đổi `time_left_s` = 3 |
+
+**Đánh giá Phase 3:**
+- Đạt mọi AC headless P3-1…P3-10 (63 test). Có ADR, CHANGELOG; không test nào bị skip.
+- Test Phase 1–2 không bị thay thế vẫn xanh.
+- FPS khoảng 119. Cả Đêm headless chạy ≤ 1.6 s.
+- Bot thắng Đêm 1 theo luật bình minh.
+- Chưa kiểm chứng: thanh dầu/nhấp nháy/đèn xẹp chưa có ảnh; biểu tượng ⚠ và việc lưu cài đặt mù màu chưa được kiểm tra.
+- Rủi ro: C1 (đi về đèn tắt gần nhất với tốc độ 2 m/s) và C2 (`fuel_drain` ghi theo từng con) có thể khác test ẩn.

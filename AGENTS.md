@@ -1,6 +1,6 @@
 # AGENTS.md: Đảo Đèn Lồng
 
-Game 3D (Python + Ursina) for the AI-SDLC lab. Graded mostly by hidden headless tests (Test Contract **v1.1**), so **contract correctness beats features**.
+Game 3D (Python + Ursina) for the AI-SDLC lab. Graded mostly by hidden headless tests (Test Contract **v1.2**), so **contract correctness beats features**.
 
 ## Commands
 - Install: `python3 -m pip install -r requirements.txt` (Ursina is only needed for `play.py`)
@@ -17,13 +17,17 @@ Game 3D (Python + Ursina) for the AI-SDLC lab. Graded mostly by hidden headless 
 - `lantern_island/maps.py`: standard maps of the 3 nights (angles: z = r·sin a). `autoplay.py`: evidence bot only.
 - `headless.py`: contract CLI (I/O only). `play.py`: rendering, menus, HUD, audio. It calls `Game.step()` only.
 - `game.contract.json`: standard tuning (Ticket-02 part 1), loaded at runtime. Do not change these numbers.
-- `docs/notes/phase-N-spec.md`: assumptions (A1.., B1..) + AC table. `docs/lab/`: original lab handouts (read-only).
+- `docs/adr/`: design decisions (ADR 0001 = lantern fuel state model + dawn win). `CHANGELOG.md`: breaking changes per phase.
+- `docs/notes/phase-N-spec.md`: assumptions (A1.., B1.., C1..) + AC table. `docs/lab/`: original lab handouts (read-only).
 
 ## Rules
 - Requirements come from the PRD/ticket text the user pastes. Do not invent requirements; if ambiguous, add an assumption to the current phase spec.
 - Tick model: step k reads input of tick k, produces state k+1; events carry tick k+1. A timer of N ticks set at tick p
   is active on ticks p..p+N-1 (cooldown ready again at p+N). Check this before "fixing" off-by-one test failures.
-- Every new behaviour gets a test named after its AC (`P2-x`). Fix the code, not the test, unless the test contradicts the spec (say why).
+- Fuel is integer 1/60 units (`Game.FUEL_*`); never compare float fuel. Safe zone = `Game._safe(L)` (lit and fuel >= 30).
+- A just-lit lantern is immediately a refuel target (fuel < 100 after decay): scenario tests that interact twice in place hit it again.
+- When a ticket replaces a rule: update/delete the old test with a reason (comment + CHANGELOG), never skip silently; add an ADR for model changes.
+- Every new behaviour gets a test named after its AC (`P3-x`). Fix the code, not the test, unless the test contradicts the spec (say why).
 - Scenario helpers must clear ALL default entities (motes, shades, drifters, charms, wind) or tests pick up map defaults.
 - Extra creative/visual entities live in `play.py` only (must not change headless output).
 - Never hand-edit files in `docs/proof/`; regenerate with `scripts/verify.sh`.
