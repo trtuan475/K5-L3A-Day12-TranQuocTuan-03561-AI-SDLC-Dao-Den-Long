@@ -82,6 +82,19 @@ for N in 1 2 3; do
   rm -f "$OUT/runs/long_n$N.jsonl"
 done
 
+# 8. Phase 4: soak (10 nights, one process) + leaderboard export (no window)
+python3 soak.py --seed 7 --nights 10 --out "$OUT/soak.json" > /dev/null; RC=$?
+SOAK=$(python3 -c "import json;d=json.load(open('$OUT/soak.json'));print(d['crashes'],d['mem_start_mb'],d['mem_end_mb'])")
+set -- $SOAK
+python3 -c "import sys; sys.exit(0 if $RC == 0 and $1 == 0 and $3 <= 1.2 * $2 else 1)" && R=PASS || R=FAIL
+step "Soak 10 nights: crashes=$1, RSS $2 MB -> $3 MB (limit x1.2)" "[soak.json](soak.json)" "$R"
+TMPLB=$(mktemp -d)
+DDL_LEADERBOARD="$TMPLB/lb.json" python3 -c "from lantern_island import leaderboard as l; l.add('verify_bot', 10, 0, 1)"
+DDL_LEADERBOARD="$TMPLB/lb.json" python3 play.py --export-leaderboard "$TMPLB/out.json" > /dev/null 2>&1; RC=$?
+[[ $RC -eq 0 ]] && grep -q verify_bot "$TMPLB/out.json" && R=PASS || R=FAIL
+step "Leaderboard export via run_cmd --export-leaderboard (exit $RC)" "temp file" "$R"
+rm -rf "$TMPLB"
+
 echo >> "$REPORT"
 [ $FAIL -eq 0 ] && echo "**Overall: PASS**" >> "$REPORT" || echo "**Overall: FAIL**" >> "$REPORT"
 cat "$REPORT"

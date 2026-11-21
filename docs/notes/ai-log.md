@@ -77,3 +77,29 @@ Công cụ: Claude Code (Claude Opus 5.5) trong VS Code. Harness: [AGENTS.md](..
 - Bot thắng Đêm 1 theo luật bình minh.
 - Chưa kiểm chứng: thanh dầu/nhấp nháy/đèn xẹp chưa có ảnh; biểu tượng ⚠ và việc lưu cài đặt mù màu chưa được kiểm tra.
 - Rủi ro: C1 (đi về đèn tắt gần nhất với tốc độ 2 m/s) và C2 (`fuel_drain` ghi theo từng con) có thể khác test ẩn.
+
+## Phase 4 (Ticket-04, v1.0.0, contract v1.3)
+
+**Cách làm:** ưu tiên theo phần chấm tự động trước:
+1. Cảnh bench (`Game(bench=True)` + `bench_scene.py`), soak, bảng xếp hạng có test.
+2. UI: bench mode, export, nhập tên, bảng xếp hạng, đổi phím, phụ đề, giảm chuyển động, cỡ chữ.
+3. Tối ưu hiệu năng.
+4. Đóng gói, tài liệu, retro.
+
+**Token/chi phí (ước tính):** khoảng 150k token. Tiết kiệm bằng một bản vá lớn có `assert`, profile trước khi tối ưu, và build PyInstaller chạy nền song song với việc viết tài liệu.
+
+**Lỗi của AI và cách phát hiện:**
+| Lỗi | Phát hiện | Sửa |
+|---|---|---|
+| Hao dầu vẫn chạy trong bench, vì bước 2 chạy trước nhánh bench | `test_bench_rules_off` đỏ (90 ≠ 100) | Bỏ qua hao dầu khi `bench` |
+| `--export-leaderboard` mở cửa sổ game, test bị treo 60 s | Test timeout | Xử lý CLI trước khi import Ursina |
+| Bench chỉ 60 FPS, sát ngưỡng | Số đo trong bench.json | Profile cho thấy sim chỉ 0.7 ms/tick, nên tối ưu phía render: cache trạng thái, setter Panda3D, gộp mắt. Kết quả 117 FPS |
+| `Ursina(size=...)` làm mất lớp UI (lỗi lặp lại từ Phase 1) | Xem ảnh bench không có HUD | Đặt `window.size` sau khi khởi tạo. Ghi vào AGENTS.md |
+| Font VeraMono thiếu dấu tiếng Việt ("Tuấn" thành "Tuan") | Xem ảnh bảng xếp hạng | Dùng font mặc định, mỗi cột một Text |
+| `lit_with_shadows_shader` không biên dịch trên macOS (từ Phase 2, chưa ai để ý) | Log bản PyInstaller | Bỏ shader, dùng chiếu sáng fixed-function |
+| PyInstaller `--collect-all panda3d` lỗi kiến trúc x86 (`rocket`) | Log build | `--exclude-module panda3d.rocket` |
+
+**Đánh giá Phase 4:**
+- Đạt: bench (116.8 / 61.9 / 806 ms trên M2 Pro), soak (0 crash, RSS gần như không đổi), bảng xếp hạng (có test), tiếp cận (có ảnh), contract v1.3, 70 test.
+- Rủi ro: máy chấm yếu hơn có thể giảm FPS. Có dư khoảng 2 lần so với ngưỡng 60 trên M2 Pro, nhưng p1-low (khoảng 62) cũng phụ thuộc GPU và Python. Load lần đầu của bản PyInstaller là 10.8 s (lần sau 0.8 s); bản chạy từ mã nguồn khoảng 0.8–1 s.
+- Chưa làm hoặc chưa kiểm chứng: Release và video (cần người dùng), gõ tiếng Việt trong InputField, hiệu ứng rung/chớp trên video.

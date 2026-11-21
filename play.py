@@ -30,6 +30,7 @@ ap.add_argument("--duration", type=float, default=30)
 ap.add_argument("--out", default="fps.txt")
 ap.add_argument("--colorblind", action="store_true", help="force colour-blind palette (screenshots)")
 ap.add_argument("--export-leaderboard", metavar="OUT")
+ap.add_argument("--ui-tour", metavar="DIR", help="screenshot menus/leaderboard/settings/keybinds/captions (evidence)")
 ARGS, _ = ap.parse_known_args()
 if ARGS.export_leaderboard:  # no window: write {"entries": [...]} and exit
     LB.export(ARGS.export_leaderboard)
@@ -43,7 +44,6 @@ from ursina import (AmbientLight, Audio, Button, DirectionalLight, Entity, Mesh,
 from ursina.models.procedural.cone import Cone
 from ursina.models.procedural.cylinder import Cylinder
 from panda3d.core import CullFaceAttrib
-from ursina.shaders import lit_with_shadows_shader
 
 from ursina.prefabs.input_field import InputField  # noqa: E402
 from lantern_island.autoplay import Bot  # noqa: E402
@@ -151,7 +151,9 @@ def sfx(name):
 
 
 def lit_e(**kw):
-    return Entity(shader=lit_with_shadows_shader, **kw)
+    """Terrain: lit by AmbientLight/DirectionalLight through Panda3D's fixed-function lighting.
+    (lit_with_shadows_shader fails to compile on macOS OpenGL and Panda3D fell back to this path anyway.)"""
+    return Entity(**kw)
 
 
 def unlit_e(**kw):
@@ -395,7 +397,8 @@ class HUD:
         self.flash = unlit_e(parent=self.root, model="quad", scale=(4, 2), color=color.rgba(1, 1, 1, 0), z=-0.5)
         br = window.bottom_right
         self.icons = {}
-        for i, (key, label) in enumerate((("dash", "Lướt [Shift]"), ("pulse", "Tỏa sáng [F]"))):
+        K = SETTINGS["keys"]
+        for i, (key, label) in enumerate((("dash", f"Lướt [{K['dash']}]"), ("pulse", f"Tỏa sáng [{K['pulse']}]"))):
             pos = br + Vec3(-0.30 + i * 0.17, 0.11, 0)
             unlit_e(parent=self.root, model="circle", scale=0.07, color=PAL["gold"] if key == "pulse" else PAL["drifter"],
                     position=pos)
@@ -559,11 +562,18 @@ class Flow:
         self.clear_ui()
         self.clear_game()
         self.set_mode("leaderboard")
-        rows = LB.load()
-        lines = [f"{i + 1:>2}. {e['name']:<12} {e['score']:>6}   {e['nights_won']} Đêm   {e['achieved_at'][:16].replace('T', ' ')}"
-                 for i, e in enumerate(LB._sorted(rows))] or ["(chưa có ai)"]
-        self.ui = panel("Bảng xếp hạng", [], "")
-        ui_text(parent=self.ui, text="\n".join(lines), origin=(0, 0.5), y=0.2, font="VeraMono.ttf", scale=1.0)
+        rows = LB._sorted(LB.load())
+        self.ui = panel("Bảng xếp hạng", [], "" if rows else "(chưa có ai)")
+        # one Text per column with the default font (OpenSans has Vietnamese diacritics; VeraMono does not)
+        cols = ((-0.42, (0, 0.5), "#"), (-0.36, (-0.5, 0.5), "Tên"), (0.02, (0.5, 0.5), "Điểm"),
+                (0.06, (-0.5, 0.5), "Đêm thắng"), (0.24, (-0.5, 0.5), "Thời điểm"))
+        if rows:
+            for x, org, head in cols:
+                ui_text(parent=self.ui, text=head, x=x, y=0.2, origin=org, color=PAL["gold"])
+        for i, e in enumerate(rows):
+            vals = (f"{i + 1}.", e["name"], str(e["score"]), str(e["nights_won"]), e["achieved_at"][:16].replace("T", " "))
+            for (x, org, _), v in zip(cols, vals):
+                ui_text(parent=self.ui, text=v, x=x, y=0.15 - i * 0.05, origin=org)
         Button(parent=self.ui, text="Về menu", scale=(0.3, 0.065), y=-0.38, color=alpha(PAL["wood"], 0.95),
                highlight_color=PAL["lamp_on"], on_click=self.menu)
 
@@ -914,7 +924,41 @@ FLOW = Flow()
 STATE = {"shots": [], "frames": 0, "t0": None, "end_frames": 0}
 
 
+TOUR = [("menu", lambda: FLOW.menu()), ("leaderboard", lambda: FLOW.show_leaderboard()),
+        ("settings", lambda: FLOW.settings("menu")), ("keybinds", lambda: FLOW.keybinds("menu")),
+        ("keybind_clash", lambda: (setattr(FLOW, "waiting_key", ("jump", "menu")), FLOW.bind_key("e"))),
+        ("name_entry", lambda: (setattr(FLOW, "total", 1234), setattr(FLOW, "nights_won", 2), FLOW.ask_name())),
+        ("play_captions", lambda: (FLOW.new_run(1), FLOW.start_night()))]
+
+
+def ui_tour():
+    i = STATE.setdefault("tour_i", 0)
+    t = STATE.setdefault("tour_t", 0.0) + 1 / 60
+    STATE["tour_t"] = t
+    if i < len(TOUR) and t > 0.6 * (i + 1):
+        name, action = TOUR[i]
+        if i > 0:
+            snap(f"ui_{TOUR[i - 1][0]}")
+        action()
+        STATE["tour_i"] = i + 1
+    if i >= len(TOUR):
+        g = FLOW.game
+        if g and g.tick == 1:
+            FLOW.caption("Bóng Mực xuất hiện!")
+            FLOW.caption("Gió sắp thổi!")
+            FLOW.caption("Đèn L1 sắp hết dầu!")
+        if g and g.tick > 90:
+            snap("ui_play_captions")
+            application.quit()
+
+
 def update():
+    if ARGS.ui_tour:
+        ARGS.shots = ARGS.ui_tour
+        ui_tour()
+        if FLOW.mode == "play":
+            FLOW.update(DT)
+        return
     if ARGS.bench_mode:
         FLOW.bench_update()
         return

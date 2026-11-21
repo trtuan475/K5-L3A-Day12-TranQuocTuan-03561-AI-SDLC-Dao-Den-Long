@@ -1,6 +1,6 @@
 # AGENTS.md: Đảo Đèn Lồng
 
-Game 3D (Python + Ursina) for the AI-SDLC lab. Graded mostly by hidden headless tests (Test Contract **v1.2**), so **contract correctness beats features**.
+Game 3D (Python + Ursina) for the AI-SDLC lab. Graded mostly by hidden headless tests (Test Contract **v1.3**), so **contract correctness beats features**.
 
 ## Commands
 - Install: `python3 -m pip install -r requirements.txt` (Ursina is only needed for `play.py`)
@@ -9,6 +9,8 @@ Game 3D (Python + Ursina) for the AI-SDLC lab. Graded mostly by hidden headless 
 - Headless: `python3 headless.py --seed 1 --night 1|2|3 --ticks 600 --out /tmp/o.jsonl [--scenario f] [--inputs f]`
 - Play: `python3 play.py [--night N]` · Screenshots: `python3 play.py --demo --shots <dir>` · FPS: `python3 play.py --bench 30 --night 3 --out <file>`
 - Sounds are generated: `python3 scripts/gen_sfx.py` (assets/sfx, self-made)
+- Bench (Ticket-04): `python3 play.py --bench-mode --seed 42 --duration 30 --out bench.json` · Soak: `python3 soak.py --seed 7 --nights 10 --out soak.json`
+- Leaderboard export: `python3 play.py --export-leaderboard out.json` (exits before Ursina starts) · UI screenshots: `python3 play.py --ui-tour <dir>`
 
 ## Layout
 - `lantern_island/sim.py`: the ONLY gameplay logic. Stdlib only, deterministic, integer tick timers. Never import ursina here.
@@ -29,6 +31,9 @@ Game 3D (Python + Ursina) for the AI-SDLC lab. Graded mostly by hidden headless 
 - When a ticket replaces a rule: update/delete the old test with a reason (comment + CHANGELOG), never skip silently; add an ADR for model changes.
 - Every new behaviour gets a test named after its AC (`P3-x`). Fix the code, not the test, unless the test contradicts the spec (say why).
 - Scenario helpers must clear ALL default entities (motes, shades, drifters, charms, wind) or tests pick up map defaults.
-- Extra creative/visual entities live in `play.py` only (must not change headless output).
+- Extra creative/visual entities live in `play.py` only (must not change headless output) and must be off in bench/soak.
+- Ursina pitfalls (all cost time): never pass `size=` to `Ursina()` (UI layer disappears; set `window.size` after);
+  palette entities need `setLightOff()`; per-frame updates of many entities must use cached state + raw Panda3D setters.
+- Use `DDL_LEADERBOARD` / `DDL_SETTINGS` env vars in tests/tours so the user's real files are never touched.
 - Never hand-edit files in `docs/proof/`; regenerate with `scripts/verify.sh`.
 - Small commits, clear messages. No secrets/.env.
